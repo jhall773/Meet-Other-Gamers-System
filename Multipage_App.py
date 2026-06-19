@@ -12,7 +12,7 @@ class App(tk.Tk):
         self.geometry("450x350")
 
         # Shared state
-        self.selected_items = []
+        self.selected_games = []
 
         # Load previous rankings if database exists
         self.db_path = "rankings.db"
@@ -51,8 +51,8 @@ class App(tk.Tk):
             return
 
         df = pd.DataFrame(
-            [(item, rank) for item, rank in self.rankings.items()],
-            columns=["item", "rank"]
+            [(game, rank) for game, rank in self.rankings.items()],
+            columns=["game", "rank"]
         )
 
         conn = sqlite3.connect(self.db_path)
@@ -79,8 +79,8 @@ class App(tk.Tk):
             return
 
         # Restore state
-        self.selected_items = df["item"].tolist()
-        self.rankings = dict(zip(df["item"], df["rank"]))
+        self.selected_games = df["games"].tolist()
+        self.rankings = dict(zip(df["game"], df["rank"]))
 
 
 class StartPage(ttk.Frame):
@@ -91,12 +91,12 @@ class StartPage(ttk.Frame):
         ttk.Button(self, text="Go to Page One",
                    command=lambda: controller.show_frame("PageOne")).pack()
 
-        ttk.Button(self,text="Go to Page 2 (Select Items)",
+        ttk.Button(self,text="Go to Page 2 (Select Games)",
                    command=lambda: controller.show_frame("PageTwo")).pack()
         
         # Note: Page 3 Automatically follows page 2 if the "Page 2" button is selected. After you select new games, you must re-rank them.
 
-        ttk.Button(self,text="Go to Page 3 (Rank/Re-Rank Items)",
+        ttk.Button(self,text="Go to Page 3 (Rank/Re-Rank Games)",
                    command=lambda: controller.show_frame("PageThree")).pack()
         
         ttk.Button(self,text="Go to Page 4 (View Ranking List)",
@@ -116,19 +116,19 @@ class PageTwo(ttk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
 
-        ttk.Label(self, text="Page 2: Choose Items", font=("Arial", 16)).pack(pady=10)
+        ttk.Label(self, text="Page 2: Choose Games", font=("Arial", 16)).pack(pady=10)
 
-        # Example list of items
-        self.items = ["Splatoon 3", "Mario Kart 8 Deluxe", "Super Smash Bros. Ultimate", "Fortnite", "Overwatch", "Apex Legends", "Minecraft"]
+        # Example list of Game Titles
+        self.games = ["Splatoon 3", "Mario Kart 8 Deluxe", "Super Smash Bros. Ultimate", "Fortnite", "Overwatch", "Apex Legends", "Minecraft"]
 
         # Dictionary of checkbox variables
         self.vars = {}
 
-        for item in self.items:
+        for game in self.games:
             var = tk.BooleanVar()
-            chk = ttk.Checkbutton(self, text=item, variable=var)
+            chk = ttk.Checkbutton(self, text=game, variable=var)
             chk.pack(anchor="w", padx=20)
-            self.vars[item] = var
+            self.vars[game] = var
 
         ttk.Button(
             self,
@@ -137,9 +137,9 @@ class PageTwo(ttk.Frame):
         ).pack(pady=20)
 
     def save_and_continue(self, controller):
-    # Save selected items
-        controller.selected_items = [
-            item for item, var in self.vars.items() if var.get()
+    # Save selected game titles
+        controller.selected_games = [
+            game for game, var in self.vars.items() if var.get()
         ]
 
         # Reset rankings in controller
@@ -238,7 +238,7 @@ class PageThree(ttk.Frame):
     # BUILD ALL DROPDOWNS (fresh or refreshed)
     # -------------------------------------------------------------
     def build_dropdowns(self):
-        selections = self.controller.selected_items
+        selections = self.controller.selected_games
 
         # First time ever loading → use DB rankings if available
         if not self.has_loaded_once:
@@ -264,30 +264,30 @@ class PageThree(ttk.Frame):
 
         # If nothing selected on Page 2
         if count == 0:
-            ttk.Label(self.dropdown_frame, text="No items selected on Page 2").pack()
+            ttk.Label(self.dropdown_frame, text="No games selected on Page 2").pack()
             self.continue_button.config(state="disabled")
             self.validation_label.pack()
             return
 
-        # Create dropdowns for each selected item
-        for item in selections:
+        # Create dropdowns for each selected game title
+        for game in selections:
             row = ttk.Frame(self.dropdown_frame)
             row.pack(fill="x", pady=5)
 
-            ttk.Label(row, text=item, width=15).pack(side="left")
+            ttk.Label(row, text=game, width=15).pack(side="left")
 
             var = tk.StringVar()
             combo = ttk.Combobox(row, textvariable=var, width=5, state="readonly")
             combo.pack(side="left")
 
-            self.rank_vars[item] = var
-            self.comboboxes[item] = combo
+            self.rank_vars[game] = var
+            self.comboboxes[game] = combo
 
             # -----------------------------------------------------
             # PRE-FILL FROM DATABASE IF AVAILABLE
             # -----------------------------------------------------
-            if item in self.controller.rankings:
-                saved_rank = str(self.controller.rankings[item])
+            if game in self.controller.rankings:
+                saved_rank = str(self.controller.rankings[game])
                 var.set(saved_rank)
 
             # Update dropdowns whenever a rank changes
@@ -300,7 +300,7 @@ class PageThree(ttk.Frame):
     # UPDATE DROPDOWN OPTIONS + SAVE RANKINGS + VALIDATE COMPLETION
     # -------------------------------------------------------------
     def update_dropdowns(self):
-        selections = self.controller.selected_items
+        selections = self.controller.selected_games
         total = len(selections)
 
         # Collect used ranks
@@ -396,8 +396,8 @@ class PageFour(ttk.Frame):
 
         sorted_items = sorted(rankings.items(), key=lambda x: x[1])
 
-        for item, rank in sorted_items:
-            ttk.Label(self.output_frame, text=f"{rank}. {item}").pack(anchor="w")
+        for game, rank in sorted_items:
+            ttk.Label(self.output_frame, text=f"{rank}. {game}").pack(anchor="w")
 
 
 if __name__ == "__main__":
