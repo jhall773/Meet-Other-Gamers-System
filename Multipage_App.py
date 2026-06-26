@@ -4,12 +4,21 @@ import pandas as pd
 import sqlite3
 import os
 
+# Engine For online DB
+from supabase import create_client
+url = "https://fnfborlpomdjdzycsbzg.supabase.co"
+key = "sb_publishable_uIDfGLa8AH1gLEpdseOuDg_OCdut_W_"
+supabase_engine = create_client(url, key)
+
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
 
         self.title("Multipage Selection + Ranking Demo")
         self.geometry("450x350")
+
+        # Share Username on Start Page
+        self.username = ""
 
         # Shared state
         self.selected_games = []
@@ -59,6 +68,52 @@ class App(tk.Tk):
         df.to_sql("rankings", conn, if_exists="replace", index=False)
         conn.close()
 
+    def save_username_to_db(self):
+        from Username_generation_logic import generate_username
+        import datetime
+        from zoneinfo import ZoneInfo
+
+        # Query Supabase:
+        self.username = generate_username()
+
+        # online_username_sql = f"select username from users where username = '{username}';"
+        # supabase sql results are APIResponse objects with attributes data = [] and count = 0 or more
+        online_username_data = (supabase_engine
+                                .table("users").select("username")
+                                .eq(column="username", value=self.username)
+                                .execute()
+                               )
+
+        # If username exists → regenerate again until you make one that doesn't
+        # while running username_gen_sql gives you a value not "None"...
+
+        while online_username_data.data:
+            self.username = generate_username()
+            online_username_data = (supabase_engine
+                                .table("users").select("username")
+                                .eq(column="username", value=self.username)
+                                .execute()
+                               )
+
+        # If username does NOT exist in online DB:
+
+        # Central Time Zone from IANA tz database
+        central_tz = ZoneInfo("America/Chicago")
+        database_time = datetime.datetime.now(central_tz)
+
+        df = pd.DataFrame(
+            [(self.username, database_time)],
+            columns = ["username", "created_at"]
+        )
+
+        # Save to local DB (CAN ONLY DO THIS ONCE):
+        conn = sqlite3.connect(self.db_path)
+        df.to_sql("users", conn, if_exists="fail", index=False)
+        conn.close()
+
+        # Save to online DB (CAN ONLY DO THIS ONCE):
+        supabase_engine.table("users").insert({"username":self.username, "created_at":database_time.isoformat()}).execute()
+
     # ----------------------------------------------------------
     # 🔥 Load rankings from SQLite if available
     # ----------------------------------------------------------
@@ -79,13 +134,44 @@ class App(tk.Tk):
             return
 
         # Restore state
-        self.selected_games = df["games"].tolist()
+        self.selected_games = df["game"].tolist()
         self.rankings = dict(zip(df["game"], df["rank"]))
+
+    def load_username_from_db(self):
+        if not os.path.exists(self.db_path):
+            return
+
+        conn = sqlite3.connect(self.db_path)
+        try:
+            df = pd.read_sql("SELECT username FROM users", conn)
+        except Exception:
+            conn.close()
+            return
+
+        conn.close()
+
+        if df.empty:
+            return
+
+        # Restore state
+        self.username = df.squeeze()
+        return self.username
 
 
 class StartPage(ttk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
+        self.controller = controller
+
+        # Loading and displaying username:
+        local_username = self.controller.load_username_from_db()
+        if not local_username:
+            self.controller.save_username_to_db()
+            local_username = self.controller.load_username_from_db()
+
+        ttk.Label(self, text=f"Username: {local_username}", font=("Arial", 15)).pack()
+
+        # Displaying page title:
         ttk.Label(self, text="Start Page", font=("Arial", 18)).pack(pady=20)
 
         ttk.Button(self, text="Go to Page One",
@@ -94,7 +180,8 @@ class StartPage(ttk.Frame):
         ttk.Button(self,text="Go to Page 2 (Select Games)",
                    command=lambda: controller.show_frame("PageTwo")).pack()
         
-        # Note: Page 3 Automatically follows page 2 if the "Page 2" button is selected. After you select new games, you must re-rank them.
+        # Note: Page 3 Automatically follows page 2 if the "Page 2" button is selected. 
+        # After you select new games, you must re-rank them.
 
         ttk.Button(self,text="Go to Page 3 (Rank/Re-Rank Games)",
                    command=lambda: controller.show_frame("PageThree")).pack()
