@@ -36,7 +36,7 @@ class App(tk.Tk):
         self.frames = {}
 
         # Initialize all pages
-        for Page in (StartPage, PageOne, PageTwo, PageThree, PageFour):
+        for Page in (StartPage, PageOne, PageTwo, PageThree, PageFour, PageFive):
             page_name = Page.__name__
             frame = Page(parent=container, controller=self)
             self.frames[page_name] = frame
@@ -67,6 +67,15 @@ class App(tk.Tk):
         conn = sqlite3.connect(self.db_path)
         df.to_sql("rankings", conn, if_exists="replace", index=False)
         conn.close()
+
+        # Save to online DB:
+        rows = df.to_dict(orient="records")
+
+        for row in rows:
+            row["username"] = self.load_username_from_db()
+
+        supabase_engine.table("rankings").upsert(rows).execute()
+
 
     def save_username_to_db(self):
         from Username_generation_logic import generate_username
@@ -158,6 +167,8 @@ class App(tk.Tk):
         return self.username
 
 
+# ---------------- START PAGE ----------------
+
 class StartPage(ttk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
@@ -188,7 +199,12 @@ class StartPage(ttk.Frame):
         
         ttk.Button(self,text="Go to Page 4 (View Ranking List)",
                    command=lambda: controller.show_frame("PageFour")).pack()
+        
+        ttk.Button(self,text="Go to Page 5 (Search for Gamers)",
+                   command=lambda: controller.show_frame("PageFive")).pack()
 
+
+# ---------------- PAGE 1: Blank (TBD) ----------------
 
 class PageOne(ttk.Frame):
     def __init__(self, parent, controller):
@@ -199,10 +215,13 @@ class PageOne(ttk.Frame):
                    command=lambda: controller.show_frame("StartPage")).pack()
 
 
+# ---------------- PAGE 2: Choose Game Titles ----------------
+
 class PageTwo(ttk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
 
+        # PAGE TITLE
         ttk.Label(self, text="Page 2: Choose Games", font=("Arial", 16)).pack(pady=10)
 
         # Example list of Game Titles
@@ -263,9 +282,7 @@ class PageThree(ttk.Frame):
         self.controller = controller
         self.has_loaded_once = False
 
-        # ---------------------------------------------------------
         # PAGE TITLE
-        # ---------------------------------------------------------
         ttk.Label(self, text="Page 3: Rank Your Selections", font=("Arial", 16)).pack(pady=10)
 
         # ---------------------------------------------------------
@@ -443,6 +460,7 @@ class PageFour(ttk.Frame):
         super().__init__(parent)
         self.controller = controller
 
+        # PAGE TITLE
         ttk.Label(self, text="Page 4: Final Rankings", font=("Arial", 16)).pack(pady=10)
 
         self.output_frame = ttk.Frame(self)
@@ -473,6 +491,7 @@ class PageFour(ttk.Frame):
             widget.destroy()
 
         
+        self.controller.load_rankings_from_db()
         rankings = self.controller.rankings
 
         
@@ -485,6 +504,163 @@ class PageFour(ttk.Frame):
 
         for game, rank in sorted_items:
             ttk.Label(self.output_frame, text=f"{rank}. {game}").pack(anchor="w")
+
+
+# ---------------- PAGE 5: Search Page ----------------
+
+class PageFive(ttk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+
+        # PAGE TITLE
+        ttk.Label(self, text="Page 5: Search for Gamers", font=("Arial", 16)).pack(pady=10)
+
+        # ---------------------------------------------------------
+        # LAYOUT: LEFT SETTINGS PANEL + RIGHT RESULTS PANEL
+        # ---------------------------------------------------------
+        main = ttk.Frame(self)
+        main.pack(fill="both", expand=True)
+
+        # LEFT SIDE SETTINGS
+        settings_frame = ttk.Frame(main)
+        settings_frame.pack(side="left", fill="y", padx=10, pady=10)
+
+        ttk.Label(settings_frame, text="Search Settings", font=("Arial", 14)).pack(pady=5)
+
+        ttk.Label(settings_frame, text="How many results:").pack(anchor="w")
+        self.num_results = tk.IntVar(value=10)
+        ttk.Spinbox(settings_frame, from_=1, to=50, textvariable=self.num_results, width=5).pack(anchor="w")
+
+        ttk.Button(
+            settings_frame,
+            text="Run Search",
+            command=self.run_search
+        ).pack(pady=10)
+
+        # Try to display current user's ranking list with the settings
+        self.controller.load_rankings_from_db()
+        
+        if not self.controller.rankings:
+            ttk.Label(self.results_frame, text="You have no current rankings to compare").pack()
+            return
+        
+        ttk.Label(settings_frame, text="Your Ranking List:").pack(pady=5)
+        for i, item in enumerate(self.controller.rankings, start=1):
+            ttk.Label(settings_frame, text=f"{i}. {item}").pack()
+
+        ttk.Button(
+            settings_frame,
+            text="Back to Start Page",
+            command=lambda: controller.show_frame("StartPage")
+        ).pack(pady=10)
+
+        # RIGHT SIDE RESULTS (scrollable)
+        results_container = ttk.Frame(main)
+        results_container.pack(side="right", fill="both", expand=True)
+
+        canvas = tk.Canvas(results_container)
+        scrollbar = ttk.Scrollbar(results_container, orient="vertical", command=canvas.yview)
+        self.results_frame = ttk.Frame(canvas)
+
+        self.results_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=self.results_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+    # ---------------------------------------------------------
+    # RUN SEARCH: LOAD DB, COMPUTE SIMILARITY, DISPLAY RESULTS
+    # ---------------------------------------------------------
+    def run_search(self):
+        # Clear old results
+        for widget in self.results_frame.winfo_children():
+            widget.destroy()
+
+        # Load online DB rankings
+        try:
+            response = supabase_engine.table("rankings").select("*").execute()
+            df = pd.DataFrame(response.data)
+
+        except Exception:
+            ttk.Label(self.results_frame, text="No external rankings found").pack()
+            return
+
+        if df.empty:
+            ttk.Label(self.results_frame, text="No external user rankings found").pack()
+            return
+
+        # Current user's ranking list
+        self.controller.load_rankings_from_db()
+        current = self.controller.rankings
+        if not current:
+            ttk.Label(self.results_frame, text="You have no current rankings to compare").pack()
+            return
+
+        current_list = [item for item, rank in sorted(current.items(), key=lambda x: x[1])]
+
+        # ---------------------------------------------------------
+        # GROUP BY USERNAME → build each user's ranked list
+        # ---------------------------------------------------------
+        results = []
+
+        for external_username in df["username"].unique():
+            # 🔥 Skip the current user
+            if external_username == self.controller.username:
+                continue
+
+            user_rows = df[df["username"] == external_username].sort_values("rank")
+
+            # Build that user's list (top 5 only)
+            user_list = user_rows["game"].tolist()[:5]
+
+            # Compute similarity score
+            score = self.compute_similarity(current_list, user_list)
+
+            results.append((external_username, user_list, score))
+
+        # ---------------------------------------------------------
+        # Sort results by similarity score (highest first)
+        # ---------------------------------------------------------
+        results.sort(key=lambda x: x[2], reverse=True)
+
+        # ---------------------------------------------------------
+        # Display results
+        # ---------------------------------------------------------
+        for external_username, user_list, score in results[:self.num_results.get()]:
+            frame = ttk.Frame(self.results_frame)
+            frame.pack(anchor="w", pady=10)
+
+            ttk.Label(frame, text=f"User: {external_username}", font=("Arial", 12)).pack(anchor="w")
+            ttk.Label(frame, text=f"Score: {score}", foreground="blue").pack(anchor="w")
+
+            ttk.Label(frame, text="List:", font=("Arial", 10)).pack(anchor="w")
+
+            for i, item in enumerate(user_list, start=1):
+                ttk.Label(frame, text=f"{i}. {item}").pack(anchor="w")
+
+    # ---------------------------------------------------------
+    # SIMILARITY FUNCTION (weighted ranking match)
+    # ---------------------------------------------------------
+    def compute_similarity(self, current, saved):
+        score = 0
+
+        # Weighting: top ranks matter more
+        for i in range(min(len(current), len(saved))):
+            if current[i] == saved[i]:
+                score += (len(current) - i) * 2  # strong match for high ranks
+
+        # Partial matches anywhere in top 5
+        top5_current = set(current[:5])
+        top5_saved = set(saved[:5])
+        score += len(top5_current.intersection(top5_saved)) * 3
+
+        return score
 
 
 if __name__ == "__main__":
