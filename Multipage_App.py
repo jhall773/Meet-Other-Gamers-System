@@ -1,13 +1,23 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
+import datetime
+from zoneinfo import ZoneInfo
 import pandas as pd
 import sqlite3
-import os
+
+# Functions for Building Conversations and Messages from other files
+from message_send_logic import send_message
+from message_retrieval_logic import generate_conversations
 
 # Engine For online DB
 from supabase import create_client
-url = "https://fnfborlpomdjdzycsbzg.supabase.co"
-key = "sb_publishable_uIDfGLa8AH1gLEpdseOuDg_OCdut_W_"
+from dotenv import load_dotenv
+import os
+# Retrieve API key from environment variables
+# Load variables from .env into environment
+load_dotenv()
+key = os.getenv("MEET_GAMERS_API_KEY")
+url = os.getenv("MEET_GAMERS_URL")
 supabase_engine = create_client(url, key)
 
 class App(tk.Tk):
@@ -15,7 +25,7 @@ class App(tk.Tk):
         super().__init__()
 
         self.title("Multipage Selection + Ranking Demo")
-        self.geometry("450x350")
+        self.geometry("600x400")
 
         # Share Username on Start Page
         self.username = ""
@@ -36,9 +46,16 @@ class App(tk.Tk):
         self.frames = {}
 
         # Initialize all pages
-        for Page in (StartPage, PageOne, PageTwo, PageThree, PageFour, PageFive):
+        for Page in (StartPage, PageTwo, PageThree, PageFour, PageFive, PageSix):
             page_name = Page.__name__
-            frame = Page(parent=container, controller=self)
+            if Page is PageSix:
+                frame = Page(parent=container,
+                            controller=self,
+                            Conversations=generate_conversations(self.username),
+                            send_message_func=send_message)
+            else:
+                frame = Page(parent=container, controller=self)
+
             self.frames[page_name] = frame
 
             # Stack all pages in the same location
@@ -52,9 +69,9 @@ class App(tk.Tk):
         frame = self.frames[page_name]
         frame.tkraise()
 
-    # ----------------------------------------------------------
-    # 🔥 Save rankings to SQLite using pandas
-    # ----------------------------------------------------------
+    # ------------------------------------------------------------------------------
+    # 🔥 Save rankings to SQLite using pandas and to online DB with supabase engine
+    # ------------------------------------------------------------------------------
     def save_rankings_to_db(self):
         if not self.rankings:
             return
@@ -77,10 +94,11 @@ class App(tk.Tk):
         supabase_engine.table("rankings").upsert(rows).execute()
 
 
+    # -----------------------------------------------------------------------------------------------
+    # 🔥 Save username to SQLite using pandas and to online DB and to online DB with supabase engine
+    # -----------------------------------------------------------------------------------------------
     def save_username_to_db(self):
         from Username_generation_logic import generate_username
-        import datetime
-        from zoneinfo import ZoneInfo
 
         # Query Supabase:
         self.username = generate_username()
@@ -185,9 +203,6 @@ class StartPage(ttk.Frame):
         # Displaying page title:
         ttk.Label(self, text="Start Page", font=("Arial", 18)).pack(pady=20)
 
-        ttk.Button(self, text="Go to Page One",
-                   command=lambda: controller.show_frame("PageOne")).pack()
-
         ttk.Button(self,text="Go to Page 2 (Select Games)",
                    command=lambda: controller.show_frame("PageTwo")).pack()
         
@@ -203,17 +218,9 @@ class StartPage(ttk.Frame):
         ttk.Button(self,text="Go to Page 5 (Search for Gamers)",
                    command=lambda: controller.show_frame("PageFive")).pack()
 
-
-# ---------------- PAGE 1: Blank (TBD) ----------------
-
-class PageOne(ttk.Frame):
-    def __init__(self, parent, controller):
-        super().__init__(parent)
-        ttk.Label(self, text="Page One", font=("Arial", 18)).pack(pady=20)
-
-        ttk.Button(self, text="Back to Start",
-                   command=lambda: controller.show_frame("StartPage")).pack()
-
+        ttk.Button(self,text="Go to Page 6 (See Gamer Messages)",
+                   command=lambda: controller.show_frame("PageSix")).pack()
+        
 
 # ---------------- PAGE 2: Choose Game Titles ----------------
 
@@ -512,6 +519,7 @@ class PageFive(ttk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
         self.controller = controller
+        self.username = self.controller.username
 
         # PAGE TITLE
         ttk.Label(self, text="Page 5: Search for Gamers", font=("Arial", 16)).pack(pady=10)
@@ -644,6 +652,16 @@ class PageFive(ttk.Frame):
             for i, item in enumerate(user_list, start=1):
                 ttk.Label(frame, text=f"{i}. {item}").pack(anchor="w")
 
+            ttk.Button(frame,
+                       text="Send Message",
+                       command=lambda u=external_username: (
+                                                    self.controller.frames["PageSix"].open_compose_from_page5(u),
+                                                    self.controller.show_frame("PageSix")
+                                                  )
+                      ).pack(anchor="w")
+
+
+
     # ---------------------------------------------------------
     # SIMILARITY FUNCTION (weighted ranking match)
     # ---------------------------------------------------------
@@ -661,6 +679,256 @@ class PageFive(ttk.Frame):
         score += len(top5_current.intersection(top5_saved)) * 3
 
         return score
+
+# ---------------- PAGE 6: Messages and Conversations ----------------
+
+class PageSix(ttk.Frame):
+    def __init__(self, parent, controller, Conversations, send_message_func):
+        super().__init__(parent)
+        self.controller = controller
+        self.username = self.controller.username
+        self.Conversations = Conversations
+        self.send_message_func = send_message_func
+
+        # State variables
+        self.selected_user = None
+        self.selected_message = None
+
+        # Main container
+        self.main_frame = ttk.Frame(self)
+        self.main_frame.pack(fill="both", expand=True)
+
+        # Build all displays
+        self.build_display1()
+        self.build_display2()
+        self.build_display3()
+        self.build_display4()
+
+        # Start on Display 1
+        self.show_display(1)
+
+    # ------------------------------------------------------------
+    # Helper: Switch between displays
+    # ------------------------------------------------------------
+    def show_display(self, num):
+        self.display1_frame.pack_forget()
+        self.display2_frame.pack_forget()
+        self.display3_frame.pack_forget()
+        self.display4_frame.pack_forget()
+
+        if num == 1:
+            self.refresh_display1()
+            self.display1_frame.pack(fill="both", expand=True)
+        elif num == 2:
+            self.refresh_display2()
+            self.display2_frame.pack(fill="both", expand=True)
+        elif num == 3:
+            self.refresh_display3()
+            self.display3_frame.pack(fill="both", expand=True)
+        elif num == 4:
+            self.refresh_display4()
+            self.display4_frame.pack(fill="both", expand=True)
+
+    # ------------------------------------------------------------
+    # DISPLAY 1 — Inbox Overview
+    # ------------------------------------------------------------
+    def build_display1(self):
+        self.display1_frame = ttk.Frame(self.main_frame)
+
+        ttk.Label(self.display1_frame, text="Inbox Overview", font=("Arial", 16)).pack(pady=10)
+
+        # Scrollable area
+        container = ttk.Frame(self.display1_frame)
+        container.pack(fill="both", expand=True)
+
+        canvas = tk.Canvas(container)
+        scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
+        self.display1_list = ttk.Frame(canvas)
+
+        self.display1_list.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=self.display1_list, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        ttk.Button(self.display1_frame, text="Back to Page 5: Search Page",
+                   command=lambda: self.controller.show_frame("PageFive")).pack(pady=10)
+
+    def refresh_display1(self):
+        for w in self.display1_list.winfo_children():
+            w.destroy()
+
+        for external_username, msgs in self.Conversations.items():
+            if external_username == self.controller.username:
+                continue
+
+            # Sort messages by timestamp
+            msgs_sorted = sorted(msgs, key=lambda x: x[2], reverse=True)
+            latest = msgs_sorted[0]
+
+            block = ttk.Frame(self.display1_list)
+            block.pack(fill="x", pady=5, padx=10)
+
+            # Converting online database time "latest[2]" -> localtime on this machine when displaying
+            dt_utc = datetime.datetime.strptime(latest[2].isoformat(), "%Y-%m-%dT%H:%M:%S.%f%z")
+            local_tz = datetime.datetime.now().astimezone().tzinfo
+            dt_local = dt_utc.astimezone(local_tz)
+
+            ttk.Label(block, text=f"Username: {external_username}", font=("Arial", 12)).pack(anchor="w")
+            ttk.Label(block, text=f"Last Msg: {latest[1][:200]}").pack(anchor="w")
+            ttk.Label(block, text=f"Time: {dt_local}").pack(anchor="w")
+
+            ttk.Button(block, text="View All Messages",
+                       command=lambda u=external_username: self.open_user_messages(u)).pack(anchor="w", pady=3)
+
+            ttk.Button(block, text="Send Message",
+                       command=lambda u=external_username: self.open_compose_from_page5(u)).pack(anchor="w")
+
+    def open_user_messages(self, username):
+        self.selected_user = username
+        self.show_display(2)
+
+    def open_compose_from_page5(self, username):
+        self.selected_user = username
+        self.show_display(4)
+
+    # ------------------------------------------------------------
+    # DISPLAY 2 — All Messages for Selected User
+    # ------------------------------------------------------------
+    def build_display2(self):
+        self.display2_frame = ttk.Frame(self.main_frame)
+
+        ttk.Label(self.display2_frame, text="Messages with User", font=("Arial", 16)).pack(pady=10)
+
+        container = ttk.Frame(self.display2_frame)
+        container.pack(fill="both", expand=True)
+
+        canvas = tk.Canvas(container)
+        scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
+        self.display2_list = ttk.Frame(canvas)
+
+        self.display2_list.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=self.display2_list, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        ttk.Button(self.display2_frame, text="Back to Inbox",
+                   command=lambda: self.show_display(1)).pack(pady=10)
+
+    def refresh_display2(self):
+        for w in self.display2_list.winfo_children():
+            w.destroy()
+
+        msgs = sorted(self.Conversations[self.selected_user], key=lambda x: x[2], reverse=True)
+
+        for msg in msgs:
+            block = ttk.Frame(self.display2_list)
+            block.pack(fill="x", pady=5, padx=10)
+
+            # Converting online database time "msg[2]" -> localtime on this machine when displaying.
+            dt_utc = datetime.datetime.strptime(msg[2].isoformat(), "%Y-%m-%dT%H:%M:%S.%f%z")
+            local_tz = datetime.datetime.now().astimezone().tzinfo
+            dt_local = dt_utc.astimezone(local_tz)
+
+            ttk.Label(block, text=f"{msg[0].upper()} — {dt_local}").pack(anchor="w")
+            ttk.Label(block, text=msg[1][:200]).pack(anchor="w")
+
+            ttk.Button(block, text="View Full Message",
+                       command=lambda m=msg: self.open_full_message(m)).pack(anchor="w")
+
+    def open_full_message(self, msg):
+        self.selected_message = msg
+        self.show_display(3)
+
+    # ------------------------------------------------------------
+    # DISPLAY 3 — Full Message View
+    # ------------------------------------------------------------
+    def build_display3(self):
+        self.display3_frame = ttk.Frame(self.main_frame)
+
+        ttk.Label(self.display3_frame, text="Full Message View", font=("Arial", 16)).pack(pady=10)
+
+        self.display3_text = tk.Text(self.display3_frame, wrap="word", height=10, width=60)
+        self.display3_text.config(state="disabled")
+        self.display3_text.pack(pady=10)
+
+        ttk.Button(self.display3_frame, text="Send Message to User",
+                   command=lambda: self.show_display(4)).pack(pady=5)
+
+        ttk.Button(self.display3_frame, text="Back to User Messages",
+                   command=lambda: self.show_display(2)).pack(pady=5)
+
+        ttk.Button(self.display3_frame, text="Back to Inbox",
+                   command=lambda: self.show_display(1)).pack(pady=5)
+
+    def refresh_display3(self):
+        # Temporarily enable so we can insert text
+        self.display3_text.config(state="normal")
+        self.display3_text.delete("1.0", tk.END)
+
+        msg = self.selected_message
+        header = f"{msg[0].upper()} to/from {self.selected_user} at {msg[2]}\n\n"
+
+        self.display3_text.insert(tk.END, header)
+        self.display3_text.insert(tk.END, msg[1])
+
+        # Disable editing again
+        self.display3_text.config(state="disabled")
+
+
+    # ------------------------------------------------------------
+    # DISPLAY 4 — Compose Message
+    # ------------------------------------------------------------
+    def build_display4(self):
+        self.display4_frame = ttk.Frame(self.main_frame)
+
+        self.compose_label = ttk.Label(self.display4_frame, text="", font=("Arial", 16))
+        self.compose_label.pack(pady=10)
+
+        self.compose_entry = tk.Text(self.display4_frame, wrap="word", height=10, width=60)
+        self.compose_entry.pack(pady=10)
+
+        ttk.Button(self.display4_frame, text="Send Message",
+                   command=self.confirm_send).pack(pady=5)
+
+        ttk.Button(self.display4_frame, text="Back to Inbox",
+                   command=lambda: self.show_display(1)).pack(pady=5)
+
+    def refresh_display4(self):
+        self.compose_label.config(text=f"Message to {self.selected_user}")
+        self.compose_entry.delete("1.0", tk.END)
+
+    def confirm_send(self):
+        msg_text = self.compose_entry.get("1.0", tk.END).strip()
+        if not msg_text:
+            messagebox.showwarning("Empty Message", "Message cannot be empty.")
+            return
+
+        if messagebox.askyesno("Confirm", "Are you sure you want to send this message?"):
+            self.send_message_func(
+                                    self.username,              # sender
+                                    self.selected_user,         # recipient
+                                    msg_text                    # message
+                                  )
+
+            # Append to Conversations
+            
+            # Central Time Zone from IANA tz database
+            central_tz = ZoneInfo("America/Chicago")
+            database_time = datetime.datetime.now(central_tz)
+
+            self.Conversations[self.selected_user].append(
+                ["sent", msg_text, database_time]
+            )
+
+            # Sort messages
+            self.Conversations[self.selected_user].sort(key=lambda x: x[2], reverse=True)
+
+            messagebox.showinfo("Sent", "Message sent successfully.")
+            self.show_display(1)
 
 
 if __name__ == "__main__":
