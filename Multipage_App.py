@@ -25,18 +25,20 @@ class App(tk.Tk):
         super().__init__()
 
         self.title("Multipage Selection + Ranking Demo")
-        self.geometry("600x400")
+        self.geometry("600x450")
 
         # Share Username on Start Page
         self.username = ""
 
-        # Shared state
+        # Shared state across pages
         self.selected_games = []
+
+        # Shared age across pages
+        self.age = "N"
 
         # Load previous rankings if database exists
         self.db_path = "rankings.db"
         self.load_rankings_from_db()
-
 
         # Container that holds all pages
         container = ttk.Frame(self)
@@ -46,9 +48,9 @@ class App(tk.Tk):
         self.frames = {}
 
         # Initialize all pages
-        for Page in (StartPage, PageTwo, PageThree, PageFour, PageFive, PageSix):
+        for Page in (StartPage, PageTwo, PageThree, PageFour, PageSix, PageSeven, PageEight):
             page_name = Page.__name__
-            if Page is PageSix:
+            if Page is PageEight:
                 frame = Page(parent=container,
                             controller=self,
                             Conversations=generate_conversations(self.username),
@@ -67,6 +69,11 @@ class App(tk.Tk):
     def show_frame(self, page_name):
         """Bring a frame to the front"""
         frame = self.frames[page_name]
+
+        # Page Refreshers so that updated information shows correctly in UI.
+        if page_name == "StartPage":
+            frame.refresh_age()
+
         frame.tkraise()
 
     # ------------------------------------------------------------------------------
@@ -95,7 +102,7 @@ class App(tk.Tk):
 
 
     # -----------------------------------------------------------------------------------------------
-    # 🔥 Save username to SQLite using pandas and to online DB and to online DB with supabase engine
+    # 🔥 Save username to SQLite using pandas and to online DB with supabase engine
     # -----------------------------------------------------------------------------------------------
     def save_username_to_db(self):
         from Username_generation_logic import generate_username
@@ -141,6 +148,26 @@ class App(tk.Tk):
         # Save to online DB (CAN ONLY DO THIS ONCE):
         supabase_engine.table("users").insert({"username":self.username, "created_at":database_time.isoformat()}).execute()
 
+    # -----------------------------------------------------------------------------------------------
+    # 🔥 Save age range to SQLite using pandas and to online DB with supabase engine
+    # -----------------------------------------------------------------------------------------------
+    def save_age_to_db(self, age_str):
+        self.age = age_str
+
+        df = pd.DataFrame(
+            [(self.age, self.username)],
+            columns = ["age", "username"]
+        )
+
+        # Save to local DB:
+        conn = sqlite3.connect(self.db_path)
+        df.to_sql("age", conn, if_exists="replace", index=False)
+        conn.close()
+
+        # Save to online DB:
+        supabase_engine.table("age").upsert({"user": self.username, "age": self.age}).execute()
+
+
     # ----------------------------------------------------------
     # 🔥 Load rankings from SQLite if available
     # ----------------------------------------------------------
@@ -164,6 +191,9 @@ class App(tk.Tk):
         self.selected_games = df["game"].tolist()
         self.rankings = dict(zip(df["game"], df["rank"]))
 
+    # ----------------------------------------------------------
+    # 🔥 Load username from SQLite if available
+    # ----------------------------------------------------------
     def load_username_from_db(self):
         if not os.path.exists(self.db_path):
             return
@@ -185,6 +215,30 @@ class App(tk.Tk):
         return self.username
 
 
+    # ----------------------------------------------------------
+    # 🔥 Load age from SQLite if available
+    # ----------------------------------------------------------
+    def load_age_from_db(self):
+        if not os.path.exists(self.db_path):
+            return
+
+        conn = sqlite3.connect(self.db_path)
+        try:
+            df = pd.read_sql("SELECT age FROM age", conn)
+        except Exception:
+            conn.close()
+            return
+
+        conn.close()
+
+        if df.empty:
+            return
+
+        # Restore state
+        self.age = df.squeeze()
+        return self.age
+
+
 # ---------------- START PAGE ----------------
 
 class StartPage(ttk.Frame):
@@ -192,13 +246,18 @@ class StartPage(ttk.Frame):
         super().__init__(parent)
         self.controller = controller
 
-        # Loading and displaying username:
+        # Loading and displaying username and age:
         local_username = self.controller.load_username_from_db()
         if not local_username:
             self.controller.save_username_to_db()
             local_username = self.controller.load_username_from_db()
 
         ttk.Label(self, text=f"Username: {local_username}", font=("Arial", 15)).pack()
+
+        local_age = self.controller.load_age_from_db()
+        local_age = "N/A" if not local_age else local_age
+        self.age_label = ttk.Label(self, text=f"Age: {local_age}", font=("Arial", 15))
+        self.age_label.pack()
 
         # Displaying page title:
         ttk.Label(self, text="Start Page", font=("Arial", 18)).pack(pady=20)
@@ -214,14 +273,21 @@ class StartPage(ttk.Frame):
         
         ttk.Button(self,text="Go to Page 4 (View Ranking List)",
                    command=lambda: controller.show_frame("PageFour")).pack()
-        
-        ttk.Button(self,text="Go to Page 5 (Search for Gamers)",
-                   command=lambda: controller.show_frame("PageFive")).pack()
 
-        ttk.Button(self,text="Go to Page 6 (See Gamer Messages)",
-                   command=lambda: controller.show_frame("PageSix")).pack()
+        ttk.Button(self,text="Go to Page 6 (Select Your Age)",
+                           command=lambda: controller.show_frame("PageSix")).pack()
         
+        ttk.Button(self,text="Go to Page 7 (Search for Gamers)",
+                   command=lambda: controller.show_frame("PageSeven")).pack()
 
+        ttk.Button(self,text="Go to Page 8 (See Gamer Messages)",
+                   command=lambda: controller.show_frame("PageEight")).pack()
+
+    def refresh_age(self):
+        """Called when the page is shown to update the age."""
+        age = self.controller.load_age_from_db()
+        self.age_label.config(text=f"Age: {age}", font=("Arial", 15))
+        
 # ---------------- PAGE 2: Choose Game Titles ----------------
 
 class PageTwo(ttk.Frame):
@@ -512,10 +578,52 @@ class PageFour(ttk.Frame):
         for game, rank in sorted_items:
             ttk.Label(self.output_frame, text=f"{rank}. {game}").pack(anchor="w")
 
+# ---------------- PAGE 6: Age Page ----------------
 
-# ---------------- PAGE 5: Search Page ----------------
+class PageSix(ttk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+        self.username = self.controller.username
+        self.age = self.controller.age
 
-class PageFive(ttk.Frame):
+        # PAGE TITLE
+        ttk.Label(self, text="Page 6: Select Your Age", font=("Arial", 16)).pack(pady=10)
+
+        # ---------------------------------------------------------
+        # LAYOUT: Radiobutton Age Selection
+        # ---------------------------------------------------------
+        main = ttk.Frame(self)
+        main.pack(fill="both", expand=True)
+
+        self.age = tk.StringVar(value="N")
+
+        ttk.Label(main, text="Please select your age range:").pack(anchor="w", pady=(5, 0))
+
+        ttk.Radiobutton(main, text="13-17", value="13-17", variable=self.age).pack(anchor="w")
+        ttk.Radiobutton(main, text="18-25", value="18-25", variable=self.age).pack(anchor="w")
+        ttk.Radiobutton(main, text="26-30", value="26-30", variable=self.age).pack(anchor="w")
+        ttk.Radiobutton(main, text="31 and up", value="31+", variable=self.age).pack(anchor="w")
+
+        ttk.Button(
+            main,
+            text="Save Your Age",
+            command=self.save_age
+        ).pack(pady=5)
+
+        ttk.Button(
+            main,
+            text="Back to Start Page",
+            command=lambda: controller.show_frame("StartPage")
+        ).pack(pady=5)
+
+    def save_age(self):
+        print("AGE VALUE:", self.age.get())
+        self.controller.save_age_to_db(self.age.get())
+
+# ---------------- PAGE 7: Search Page ----------------
+
+class PageSeven(ttk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
         self.controller = controller
@@ -540,11 +648,29 @@ class PageFive(ttk.Frame):
         self.num_results = tk.IntVar(value=10)
         ttk.Spinbox(settings_frame, from_=1, to=50, textvariable=self.num_results, width=5).pack(anchor="w")
 
+        self.age_13_17 = tk.BooleanVar()
+        self.age_18_25 = tk.BooleanVar()
+        self.age_26_30 = tk.BooleanVar()
+        self.age_31_up = tk.BooleanVar()
+
+        ttk.Label(settings_frame, text="Please select all age ranges you would like to search for:").pack(
+                                                                                 anchor="w", pady=(5, 0))
+
+        ttk.Checkbutton(settings_frame, text="13-17", variable=self.age_13_17).pack(anchor="w")
+        ttk.Checkbutton(settings_frame, text="18-25", variable=self.age_18_25).pack(anchor="w")
+        ttk.Checkbutton(settings_frame, text="26-30", variable=self.age_26_30).pack(anchor="w")
+        ttk.Checkbutton(settings_frame, text="31 and up", variable=self.age_31_up).pack(anchor="w")
+
+        self.age_ranges = [(self.age_13_17, "13-17"), 
+                           (self.age_18_25, "18-25"),
+                           (self.age_26_30, "26-30"),
+                           (self.age_31_up, "30+")]
+
         ttk.Button(
             settings_frame,
             text="Run Search",
             command=self.run_search
-        ).pack(pady=10)
+        ).pack(pady=5)
 
         # Try to display current user's ranking list with the settings
         self.controller.load_rankings_from_db()
@@ -561,7 +687,7 @@ class PageFive(ttk.Frame):
             settings_frame,
             text="Back to Start Page",
             command=lambda: controller.show_frame("StartPage")
-        ).pack(pady=10)
+        ).pack(pady=5)
 
         # RIGHT SIDE RESULTS (scrollable)
         results_container = ttk.Frame(main)
@@ -590,24 +716,41 @@ class PageFive(ttk.Frame):
         for widget in self.results_frame.winfo_children():
             widget.destroy()
 
+        # Find all acceptable ages
+        acceptable_ages = []
+        for age_range, age_str in self.age_ranges:
+            if age_range.get() == True:
+                acceptable_ages.append(age_str)
+
         # Load online DB rankings
         try:
+            user_age_results = (supabase_engine.
+                                table("age").
+                                select("age, users(username)").
+                                in_("age", acceptable_ages).execute()
+                               )
+
+            usernames = [row["users"]["username"] for row in user_age_results.data]
+
             response = supabase_engine.table("rankings").select("*").execute()
+
             df = pd.DataFrame(response.data)
+            filtered_df = df[df["username"].isin(usernames)]
+            filtered_df = filtered_df[filtered_df["username"] != self.controller.username]
 
         except Exception:
-            ttk.Label(self.results_frame, text="No external rankings found").pack()
+            ttk.Label(self.results_frame, text="Error occured when searching for external rankings.").pack()
             return
 
-        if df.empty:
-            ttk.Label(self.results_frame, text="No external user rankings found").pack()
+        if filtered_df.empty:
+            ttk.Label(self.results_frame, text="No external user rankings found.\nPlease try different filters.").pack()
             return
 
         # Current user's ranking list
         self.controller.load_rankings_from_db()
         current = self.controller.rankings
         if not current:
-            ttk.Label(self.results_frame, text="You have no current rankings to compare").pack()
+            ttk.Label(self.results_frame, text="You have no current rankings to compare with.").pack()
             return
 
         current_list = [item for item, rank in sorted(current.items(), key=lambda x: x[1])]
@@ -617,7 +760,7 @@ class PageFive(ttk.Frame):
         # ---------------------------------------------------------
         results = []
 
-        for external_username in df["username"].unique():
+        for external_username in filtered_df["username"].unique():
             # 🔥 Skip the current user
             if external_username == self.controller.username:
                 continue
@@ -655,13 +798,11 @@ class PageFive(ttk.Frame):
             ttk.Button(frame,
                        text="Send Message",
                        command=lambda u=external_username: (
-                                                    self.controller.frames["PageSix"].open_compose_from_page5(u),
-                                                    self.controller.show_frame("PageSix")
+                                                    self.controller.frames["PageEight"].open_compose_from_page5(u),
+                                                    self.controller.show_frame("PageEight")
                                                   )
                       ).pack(anchor="w")
-
-
-
+            
     # ---------------------------------------------------------
     # SIMILARITY FUNCTION (weighted ranking match)
     # ---------------------------------------------------------
@@ -680,9 +821,9 @@ class PageFive(ttk.Frame):
 
         return score
 
-# ---------------- PAGE 6: Messages and Conversations ----------------
+# ---------------- PAGE 8: Messages and Conversations ----------------
 
-class PageSix(ttk.Frame):
+class PageEight(ttk.Frame):
     def __init__(self, parent, controller, Conversations, send_message_func):
         super().__init__(parent)
         self.controller = controller
@@ -753,7 +894,7 @@ class PageSix(ttk.Frame):
         scrollbar.pack(side="right", fill="y")
 
         ttk.Button(self.display1_frame, text="Back to Page 5: Search Page",
-                   command=lambda: self.controller.show_frame("PageFive")).pack(pady=10)
+                   command=lambda: self.controller.show_frame("PageSeven")).pack(pady=10)
 
     def refresh_display1(self):
         for w in self.display1_list.winfo_children():
