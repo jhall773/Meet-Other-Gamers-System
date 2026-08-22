@@ -33,7 +33,7 @@ class App(tk.Tk):
 
         self.frames = {}
 
-        for Page in (Start_Page, ZipLookupPage, RadiusSearchPage):
+        for Page in (Start_Page, PageFive, RadiusSearchPage):
             page_name = Page.__name__
             frame = Page(parent=container, controller=self)
             self.frames[page_name] = frame
@@ -45,7 +45,7 @@ class App(tk.Tk):
         # Prevent entering Radius page without a saved ZIP
         if page_name == "RadiusSearchPage" and not self.user_zip:
             messagebox.showerror("Error", "You must select a ZIP Code first that can be associated with your account.")
-            self.frames["ZipLookupPage"].tkraise()
+            self.frames["PageFive"].tkraise()
             return
         
         frame = self.frames[page_name]
@@ -67,7 +67,7 @@ class Start_Page(ttk.Frame):
                   font=("Arial", 16)).pack(pady=10)
 
         ttk.Button(self, text="ZIP Code Lookup",
-                   command=lambda: controller.show_frame("ZipLookupPage")
+                   command=lambda: controller.show_frame("PageFive")
                    ).pack(pady=5)
 
         ttk.Button(self, text="Miles-Radius Search",
@@ -77,7 +77,7 @@ class Start_Page(ttk.Frame):
 # ---------------------------------------------------------
 # ZIP Lookup Page
 # ---------------------------------------------------------
-class ZipLookupPage(ttk.Frame):
+class PageFive(ttk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
         self.controller = controller

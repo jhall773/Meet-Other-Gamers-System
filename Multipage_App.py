@@ -1,7 +1,8 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-import datetime
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
+from geopy.distance import geodesic
 import pandas as pd
 import sqlite3
 
@@ -36,9 +37,16 @@ class App(tk.Tk):
         # Shared age across pages
         self.age = "N"
 
+        # Shared ZIP + State across pages
+        self.user_zip = None
+        self.user_state = None
+
         # Load previous rankings if database exists
         self.db_path = "rankings.db"
         self.load_rankings_from_db()
+
+        # Load all US ZIP codes if user needs to find their ZIP
+        self.zip_db_path = "US_zip_codes.db"
 
         # Container that holds all pages
         container = ttk.Frame(self)
@@ -48,7 +56,8 @@ class App(tk.Tk):
         self.frames = {}
 
         # Initialize all pages
-        for Page in (StartPage, PageTwo, PageThree, PageFour, PageSix, PageSeven, PageEight):
+        for Page in (StartPage, PageTwo, PageThree, PageFour, PageFive,
+                     PageSix, PageSeven, PageEight):
             page_name = Page.__name__
             if Page is PageEight:
                 frame = Page(parent=container,
@@ -70,11 +79,28 @@ class App(tk.Tk):
         """Bring a frame to the front"""
         frame = self.frames[page_name]
 
-        # Page Refreshers so that updated information shows correctly in UI.
+        # Page Refreshers updating information.
+
+        # If going to StartPage (Main Menu), refresh so it properly shows saved age
         if page_name == "StartPage":
             frame.refresh_age()
 
+        # If going to PageSeven, refresh so it properly shows saved zipcode & state
+        if page_name == "PageSeven":
+            frame.refresh_zip_state()
+
         frame.tkraise()
+
+    # ------------------------------------------------------------------------------
+    # 🔥 Load all US ZIP codes from US_zip_codes.db
+    # ------------------------------------------------------------------------------
+    def load_all_zips(self):
+        conn = sqlite3.connect(self.zip_db_path)
+        cur = conn.cursor()
+        cur.execute("SELECT DISTINCT zcta5_code FROM zipcodes")
+        zips = [row[0] for row in cur.fetchall()]
+        conn.close()
+        return sorted(zips)
 
     # ------------------------------------------------------------------------------
     # 🔥 Save rankings to SQLite using pandas and to online DB with supabase engine
@@ -99,7 +125,6 @@ class App(tk.Tk):
             row["username"] = self.load_username_from_db()
 
         supabase_engine.table("rankings").upsert(rows).execute()
-
 
     # -----------------------------------------------------------------------------------------------
     # 🔥 Save username to SQLite using pandas and to online DB with supabase engine
@@ -131,9 +156,7 @@ class App(tk.Tk):
 
         # If username does NOT exist in online DB:
 
-        # Central Time Zone from IANA tz database
-        central_tz = ZoneInfo("America/Chicago")
-        database_time = datetime.datetime.now(central_tz)
+        database_time = datetime.now(timezone.utc)
 
         df = pd.DataFrame(
             [(self.username, database_time)],
@@ -167,6 +190,25 @@ class App(tk.Tk):
         # Save to online DB:
         supabase_engine.table("age").upsert({"user": self.username, "age": self.age}).execute()
 
+    # -----------------------------------------------------------------------------------------------
+    # 🔥 Save zipcode range to SQLite using pandas and to online DB with supabase engine
+    # -----------------------------------------------------------------------------------------------
+    def save_zipcode_to_db(self, zipcode, state):
+        self.user_zip = zipcode
+        self.user_state = state
+
+        df = pd.DataFrame(
+            [(self.user_zip, self.user_state, self.username)],
+            columns = ["zipcode", "state", "username"]
+        )
+
+        # Save to local DB:
+        conn = sqlite3.connect(self.db_path)
+        df.to_sql("user_zipcode", conn, if_exists="replace", index=False)
+        conn.close()
+
+        # Save to online DB:
+        supabase_engine.table("user_zipcodes").upsert({"username": self.username, "state": self.user_state, "zipcode": self.user_zip}).execute()
 
     # ----------------------------------------------------------
     # 🔥 Load rankings from SQLite if available
@@ -214,7 +256,6 @@ class App(tk.Tk):
         self.username = df.squeeze()
         return self.username
 
-
     # ----------------------------------------------------------
     # 🔥 Load age from SQLite if available
     # ----------------------------------------------------------
@@ -238,6 +279,31 @@ class App(tk.Tk):
         self.age = df.squeeze()
         return self.age
 
+    # ----------------------------------------------------------
+    # 🔥 Load zipcode from SQLite if available
+    # ----------------------------------------------------------
+    def load_zipcode_from_db(self):
+        if not os.path.exists(self.db_path):
+            return
+
+        conn = sqlite3.connect(self.db_path)
+        try:
+            df_zip = pd.read_sql("SELECT zipcode FROM user_zipcode", conn)
+            df_state = pd.read_sql("SELECT state FROM user_zipcode", conn)
+        except Exception:
+            conn.close()
+            return
+
+        conn.close()
+
+        if df_zip.empty or df_state.empty:
+            return
+
+        # Restore state
+        self.user_zip = df_zip.squeeze()
+        self.user_state = df_state.squeeze()
+
+        return (self.user_zip, self.user_state)
 
 # ---------------- START PAGE ----------------
 
@@ -274,6 +340,9 @@ class StartPage(ttk.Frame):
         ttk.Button(self,text="Go to Page 4 (View Ranking List)",
                    command=lambda: controller.show_frame("PageFour")).pack()
 
+        ttk.Button(self,text="Go to Page 5 (Search for Your Location (ZIP code))",
+                           command=lambda: controller.show_frame("PageFive")).pack()
+
         ttk.Button(self,text="Go to Page 6 (Select Your Age)",
                            command=lambda: controller.show_frame("PageSix")).pack()
         
@@ -284,7 +353,7 @@ class StartPage(ttk.Frame):
                    command=lambda: controller.show_frame("PageEight")).pack()
 
     def refresh_age(self):
-        """Called when the page is shown to update the age."""
+        """Called when the page is shown by App() controller to update the age."""
         age = self.controller.load_age_from_db()
         self.age_label.config(text=f"Age: {age}", font=("Arial", 15))
         
@@ -345,7 +414,6 @@ class PageTwo(ttk.Frame):
         page3.validation_label.pack_forget()
 
         controller.show_frame("PageThree")
-
 
 # ---------------- PAGE 3: Game Rankings ----------------
 
@@ -525,8 +593,7 @@ class PageThree(ttk.Frame):
             self.continue_button.config(state="disabled")
             self.validation_label.pack()
 
-
-# ---------------- PAGE 4 ----------------
+# ---------------- PAGE 4: View Game Rankings List ----------------
 
 class PageFour(ttk.Frame):
     def __init__(self, parent, controller):
@@ -577,6 +644,139 @@ class PageFour(ttk.Frame):
 
         for game, rank in sorted_items:
             ttk.Label(self.output_frame, text=f"{rank}. {game}").pack(anchor="w")
+
+# ---------------- PAGE 5: Zipcode Lookup Page ----------------
+
+class PageFive(ttk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+
+        # PAGE TITLE
+        ttk.Label(self, text="Page 5: ZIP Code Lookup",
+                    font=("Arial", 14)).pack(pady=5)
+
+        # Saved ZIP display
+        self.saved_zip_label = ttk.Label(self, text="Saved ZIP Code: None")
+        self.saved_zip_label.pack(pady=3)
+
+        # Check if an old ZIP code and State were saved
+        old_zip_state = self.controller.load_zipcode_from_db()
+        if old_zip_state:
+            old_zip_code = old_zip_state[0]
+            old_state = old_zip_state[1]
+            self.saved_zip_label.config(text=f"Saved ZIP Code: {old_zip_code} ({old_state})")
+
+        ttk.Button(self, text="Back to Start Page",
+                    command=lambda: controller.show_frame("StartPage")
+                    ).pack(anchor="w", padx=10, pady=3)
+
+        ttk.Label(self, text="Enter ZIP Code:").pack(anchor="w", padx=10)
+        self.entry_zip = ttk.Entry(self, width=15)
+        self.entry_zip.pack(anchor="w", padx=10)
+        self.entry_zip.bind("<KeyRelease>", self.update_autocomplete)
+
+        # Autocomplete with scrollbar
+        listbox_frame = ttk.Frame(self)
+        listbox_frame.pack(anchor="w", padx=10)
+
+        self.listbox = tk.Listbox(listbox_frame, height=4, width=10)
+        self.listbox.pack(side="left")
+
+        scrollbar = ttk.Scrollbar(listbox_frame, orient="vertical",
+                                    command=self.listbox.yview)
+        scrollbar.pack(side="right", fill="y")
+        self.listbox.config(yscrollcommand=scrollbar.set)
+
+        self.listbox.bind("<ButtonRelease-1>", self.fill_from_listbox)
+
+        ttk.Button(self, text="Lookup ZIP",
+                    command=self.lookup_zip).pack(pady=5)
+
+        self.tree = ttk.Treeview(self,
+                                    columns=("State", "Longitude", "Latitude"),
+                                    show="headings", height=6)
+        self.tree.heading("State", text="State")
+        self.tree.heading("Longitude", text="Longitude")
+        self.tree.heading("Latitude", text="Latitude")
+        self.tree.pack(fill="both", expand=True, padx=10, pady=5)
+
+        # Single-click event
+        self.tree.bind("<ButtonRelease-1>", self.on_row_click)
+    
+    def update_autocomplete(self, event):
+        typed = self.entry_zip.get()
+        self.listbox.delete(0, tk.END)
+        self.ALL_ZIPS = self.controller.load_all_zips()
+
+        if typed == "":
+            return
+
+        matches = [z for z in self.ALL_ZIPS if z.startswith(typed)]
+        for m in matches[:10]:
+            self.listbox.insert(tk.END, m)
+
+    def fill_from_listbox(self, event):
+        try:
+            selection = self.listbox.get(self.listbox.curselection())
+        except:
+            return
+        self.entry_zip.delete(0, tk.END)
+        self.entry_zip.insert(0, selection)
+
+    def lookup_zip(self):
+        zip_code = self.entry_zip.get().strip()
+        zip_db_path = self.controller.zip_db_path
+
+        if not zip_code:
+            messagebox.showerror("Error", "Please enter a ZIP code.")
+            return
+
+        conn = sqlite3.connect(zip_db_path)
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT ste_name, longitude, latitude
+            FROM zipcodes
+            WHERE zcta5_code = ?
+        """, (zip_code,))
+        rows = cur.fetchall()
+        conn.close()
+
+        if not rows:
+            messagebox.showinfo("Not Found", f"No data found for ZIP {zip_code}.")
+            return
+
+        # Save ZIP + first state
+        state = rows[0][0]
+        self.controller.user_zip = zip_code
+        self.controller.user_state = state
+
+        self.saved_zip_label.config(text=f"Saved ZIP Code: {zip_code} ({state})")
+        self.controller.save_zipcode_to_db(zip_code, state)
+
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+
+        for row in rows:
+            state, lon, lat = row
+            self.tree.insert("", "end", values=(state, lon, lat))
+
+    def on_row_click(self, event):
+        selected = self.tree.focus()
+        if not selected:
+            return
+
+        values = self.tree.item(selected, "values")
+        if not values:
+            return
+
+        state, lon, lat = values
+        zip_code = self.controller.user_zip
+
+        messagebox.showinfo(
+            "ZIP Selected",
+            f"You selected ZIP {zip_code} in {state}.\nCoordinates: {lat}, {lon}"
+        )
 
 # ---------------- PAGE 6: Age Page ----------------
 
@@ -630,7 +830,7 @@ class PageSeven(ttk.Frame):
         self.username = self.controller.username
 
         # PAGE TITLE
-        ttk.Label(self, text="Page 5: Search for Gamers", font=("Arial", 16)).pack(pady=10)
+        ttk.Label(self, text="Page 7: Search for Gamers", font=("Arial", 16)).pack(pady=10)
 
         # ---------------------------------------------------------
         # LAYOUT: LEFT SETTINGS PANEL + RIGHT RESULTS PANEL
@@ -666,6 +866,22 @@ class PageSeven(ttk.Frame):
                            (self.age_26_30, "26-30"),
                            (self.age_31_up, "30+")]
 
+        # ⭐ Saved zip is initialized to "None" before "ZipLookup Page". But after that, this always refreshes
+        #     with the "refresh()" function to match the last saved controller/App() "self.user_zip/state" values.
+        self.using_zip_label = ttk.Label(self, text=f"Using ZIP Code: None")
+        self.using_zip_label.pack(pady=3)
+
+        # Slider label
+        self.radius_label = ttk.Label(self, text="Radius Within: 5 miles")
+        self.radius_label.pack(anchor="w", padx=10)
+
+        # Slider for radius (5–50 miles)
+        self.radius_slider = ttk.Scale(self, from_=5, to=50,
+                                        orient="horizontal",
+                                        command=self.update_radius_label)
+        self.radius_slider.pack(anchor="w", padx=10)
+        self.radius_slider.configure(length=200)
+        
         ttk.Button(
             settings_frame,
             text="Run Search",
@@ -708,6 +924,74 @@ class PageSeven(ttk.Frame):
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
+    # ----------------------------------------------------------------
+    # REFRESH ZIP STATE: Used by the main App() so it loads ZIP code.
+    # ----------------------------------------------------------------
+    def refresh_zip_state(self):
+        """Called when the page is shown by App() controller to load the ZIP code and display it in label."""
+        # Check if an old ZIP code and State were saved
+        old_zip_state = self.controller.load_zipcode_from_db()
+        if old_zip_state:
+            old_zip_code = old_zip_state[0]
+            old_state = old_zip_state[1]
+            self.using_zip_label.config(text=f"Using ZIP Code: {old_zip_code} ({old_state})")
+
+    # -----------------------------------------------------------------------------------------------------
+    # UPDATE RADIUS LABEL: Used by ttk.Scale Object (slider bar) above to show current mile-radius setting.
+    # -----------------------------------------------------------------------------------------------------
+    def update_radius_label(self, value):
+        miles = round(float(value) / 5) * 5
+        self.radius_label.config(text=f"Radius Within: {miles} miles")
+
+    # -------------------------------------------------------------------------------------------------------------
+    # SEARCH RADIUS: Used by RUN SEARCH function below to gain valid locations that match the miles-radius setting.
+    # -------------------------------------------------------------------------------------------------------------
+    def search_radius(self):
+        # Always load fresh values from controller
+        # Check if an old ZIP code and State were saved
+        old_zip_state = self.controller.load_zipcode_from_db()
+        if old_zip_state:
+            old_zip_code = old_zip_state[0]
+            old_state = old_zip_state[1]
+
+            # ⭐ Correct label update
+            self.using_zip_label.config(text=f"Using ZIP Code: {old_zip_code} ({old_state})")
+
+        zip_db_path = self.controller.zip_db_path
+
+        radius = round(self.radius_slider.get() / 5) * 5
+
+        conn = sqlite3.connect(zip_db_path)
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT longitude, latitude
+            FROM zipcodes
+            WHERE zcta5_code = ?
+            LIMIT 1
+        """, (old_zip_code,))
+        center = cur.fetchone()
+
+        if not center:
+            messagebox.showerror("Error", "ZIP not found.")
+            conn.close()
+            return
+
+        center_lon, center_lat = center
+        center_point = (center_lat, center_lon)
+
+        cur.execute("SELECT zcta5_code, ste_name, longitude, latitude FROM zipcodes")
+        all_rows = cur.fetchall()
+        conn.close()
+
+        results = set()
+        for z, st, lon, lat in all_rows:
+            dist = geodesic(center_point, (lat, lon)).miles
+            if dist <= radius:
+                results.add((int(z), st))
+
+        return results
+
     # ---------------------------------------------------------
     # RUN SEARCH: LOAD DB, COMPUTE SIMILARITY, DISPLAY RESULTS
     # ---------------------------------------------------------
@@ -722,20 +1006,49 @@ class PageSeven(ttk.Frame):
             if age_range.get() == True:
                 acceptable_ages.append(age_str)
 
+        # Find all acceptable ZIP codes
+        acceptable_zips = self.search_radius()   # set of (zip, state)
+
         # Load online DB rankings
         try:
-            user_age_results = (supabase_engine.
-                                table("age").
-                                select("age, users(username)").
-                                in_("age", acceptable_ages).execute()
-                               )
+            # 1. Get usernames with acceptable ages
+            user_age_results = (
+                supabase_engine
+                .table("age")
+                .select("age, users(username)")
+                .in_("age", acceptable_ages)
+                .execute()
+            )
 
-            usernames = [row["users"]["username"] for row in user_age_results.data]
+            age_usernames = [row["users"]["username"] for row in user_age_results.data]
 
+            # 2. Get ZIP codes for all users
+            zip_results = (
+                supabase_engine
+                .table("user_zipcodes")
+                .select("username, zipcode, state")
+                .execute()
+            )
+
+            zip_df = pd.DataFrame(zip_results.data)
+
+            # 3. Filter ZIPs by acceptable_zips
+            zip_df["zip_state"] = list(zip(zip_df["zipcode"], zip_df["state"]))
+            zip_filtered_df = zip_df[zip_df["zip_state"].isin(acceptable_zips)]
+
+            zip_usernames = set(zip_filtered_df["username"])
+
+            # 4. Load user rankings
             response = supabase_engine.table("rankings").select("*").execute()
-
             df = pd.DataFrame(response.data)
-            filtered_df = df[df["username"].isin(usernames)]
+
+            # 5. Filter user rankings by acceptable ages
+            filtered_df = df[df["username"].isin(age_usernames)]
+
+            # 6. Filter user rankings by acceptable ZIPs
+            filtered_df = filtered_df[filtered_df["username"].isin(zip_usernames)]
+
+            # 7. Remove yourself from list of users
             filtered_df = filtered_df[filtered_df["username"] != self.controller.username]
 
         except Exception:
@@ -798,7 +1111,7 @@ class PageSeven(ttk.Frame):
             ttk.Button(frame,
                        text="Send Message",
                        command=lambda u=external_username: (
-                                                    self.controller.frames["PageEight"].open_compose_from_page5(u),
+                                                    self.controller.frames["PageEight"].open_compose_from_page7(u),
                                                     self.controller.show_frame("PageEight")
                                                   )
                       ).pack(anchor="w")
@@ -893,8 +1206,11 @@ class PageEight(ttk.Frame):
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
-        ttk.Button(self.display1_frame, text="Back to Page 5: Search Page",
+        ttk.Button(self.display1_frame, text="Back to Page 7: Search Page",
                    command=lambda: self.controller.show_frame("PageSeven")).pack(pady=10)
+
+        ttk.Button(self.display1_frame, text="Back to Start Page",
+                   command=lambda: self.controller.show_frame("StartPage")).pack(pady=10)
 
     def refresh_display1(self):
         for w in self.display1_list.winfo_children():
@@ -912,8 +1228,8 @@ class PageEight(ttk.Frame):
             block.pack(fill="x", pady=5, padx=10)
 
             # Converting online database time "latest[2]" -> localtime on this machine when displaying
-            dt_utc = datetime.datetime.strptime(latest[2].isoformat(), "%Y-%m-%dT%H:%M:%S.%f%z")
-            local_tz = datetime.datetime.now().astimezone().tzinfo
+            dt_utc = datetime.strptime(latest[2].isoformat(), "%Y-%m-%dT%H:%M:%S.%f%z")
+            local_tz = datetime.now().astimezone().tzinfo
             dt_local = dt_utc.astimezone(local_tz)
 
             ttk.Label(block, text=f"Username: {external_username}", font=("Arial", 12)).pack(anchor="w")
@@ -924,13 +1240,13 @@ class PageEight(ttk.Frame):
                        command=lambda u=external_username: self.open_user_messages(u)).pack(anchor="w", pady=3)
 
             ttk.Button(block, text="Send Message",
-                       command=lambda u=external_username: self.open_compose_from_page5(u)).pack(anchor="w")
+                       command=lambda u=external_username: self.open_compose_from_page7(u)).pack(anchor="w")
 
     def open_user_messages(self, username):
         self.selected_user = username
         self.show_display(2)
 
-    def open_compose_from_page5(self, username):
+    def open_compose_from_page7(self, username):
         self.selected_user = username
         self.show_display(4)
 
@@ -970,8 +1286,8 @@ class PageEight(ttk.Frame):
             block.pack(fill="x", pady=5, padx=10)
 
             # Converting online database time "msg[2]" -> localtime on this machine when displaying.
-            dt_utc = datetime.datetime.strptime(msg[2].isoformat(), "%Y-%m-%dT%H:%M:%S.%f%z")
-            local_tz = datetime.datetime.now().astimezone().tzinfo
+            dt_utc = datetime.strptime(msg[2].isoformat(), "%Y-%m-%dT%H:%M:%S.%f%z")
+            local_tz = datetime.now().astimezone().tzinfo
             dt_local = dt_utc.astimezone(local_tz)
 
             ttk.Label(block, text=f"{msg[0].upper()} — {dt_local}").pack(anchor="w")
@@ -1011,7 +1327,17 @@ class PageEight(ttk.Frame):
         self.display3_text.delete("1.0", tk.END)
 
         msg = self.selected_message
-        header = f"{msg[0].upper()} to/from {self.selected_user} at {msg[2]}\n\n"
+
+        # Converting online database time "msg[2]" -> local_time on this machine when displaying.
+        dt_utc = datetime.strptime(msg[2].isoformat(), "%Y-%m-%dT%H:%M:%S.%f%z")
+        local_tz = datetime.now().astimezone().tzinfo
+        local_dt = dt_utc.astimezone(local_tz)
+
+        # Displaying the full message
+        if msg[0] == 'recieved':
+            header = f"{msg[0].upper()} from {self.selected_user} at {local_dt}\n\n"
+        if msg[0] == 'sent':
+            header = f"{msg[0].upper()} to {self.selected_user} at {local_dt}\n\n"
 
         self.display3_text.insert(tk.END, header)
         self.display3_text.insert(tk.END, msg[1])
@@ -1056,10 +1382,7 @@ class PageEight(ttk.Frame):
                                   )
 
             # Append to Conversations
-            
-            # Central Time Zone from IANA tz database
-            central_tz = ZoneInfo("America/Chicago")
-            database_time = datetime.datetime.now(central_tz)
+            database_time = datetime.now(timezone.utc)
 
             self.Conversations[self.selected_user].append(
                 ["sent", msg_text, database_time]
