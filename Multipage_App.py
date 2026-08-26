@@ -896,8 +896,8 @@ class PageSeven(ttk.Frame):
             return
         
         ttk.Label(settings_frame, text="Your Ranking List:").pack(pady=5)
-        for i, item in enumerate(self.controller.rankings, start=1):
-            ttk.Label(settings_frame, text=f"{i}. {item}").pack()
+        for i, item in enumerate(sorted(self.controller.rankings.items(), key=lambda x: x[1]), start=1):
+            ttk.Label(settings_frame, text=f"{i}. {item[0]}").pack()
 
         ttk.Button(
             settings_frame,
@@ -1032,7 +1032,7 @@ class PageSeven(ttk.Frame):
 
             zip_df = pd.DataFrame(zip_results.data)
 
-            # 3. Filter ZIPs by acceptable_zips
+            # 3. Filter usernames by acceptable_zips
             zip_df["zip_state"] = list(zip(zip_df["zipcode"], zip_df["state"]))
             zip_filtered_df = zip_df[zip_df["zip_state"].isin(acceptable_zips)]
 
@@ -1040,12 +1040,12 @@ class PageSeven(ttk.Frame):
 
             # 4. Load user rankings
             response = supabase_engine.table("rankings").select("*").execute()
-            df = pd.DataFrame(response.data)
+            user_rankings_df = pd.DataFrame(response.data)
 
-            # 5. Filter user rankings by acceptable ages
-            filtered_df = df[df["username"].isin(age_usernames)]
+            # 5. Filter user rankings to only get rankings from users with acceptable ages
+            filtered_df = user_rankings_df[user_rankings_df["username"].isin(age_usernames)]
 
-            # 6. Filter user rankings by acceptable ZIPs
+            # 6. Filter user rankings to only get rankings from properly aged users with acceptable ZIPs
             filtered_df = filtered_df[filtered_df["username"].isin(zip_usernames)]
 
             # 7. Remove yourself from list of users
@@ -1078,7 +1078,7 @@ class PageSeven(ttk.Frame):
             if external_username == self.controller.username:
                 continue
 
-            user_rows = df[df["username"] == external_username].sort_values("rank")
+            user_rows = user_rankings_df[user_rankings_df["username"] == external_username].sort_values("rank")
 
             # Build that user's list (top 5 only)
             user_list = user_rows["game"].tolist()[:5]
@@ -1130,7 +1130,7 @@ class PageSeven(ttk.Frame):
         # Partial matches anywhere in top 5
         top5_current = set(current[:5])
         top5_saved = set(saved[:5])
-        score += len(top5_current.intersection(top5_saved)) * 3
+        score += len(top5_current.intersection(top5_saved))
 
         return score
 
