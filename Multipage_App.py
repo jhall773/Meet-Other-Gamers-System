@@ -35,14 +35,17 @@ class App(tk.Tk):
         self.selected_games = []
 
         # Shared age across pages
-        self.age = "N"
+        self.age = "N/A"
 
         # Shared ZIP + State across pages
         self.user_zip = None
         self.user_state = None
 
+        # Shared rankings accross pages
+        self.rankings = {}
+
         # Load previous rankings if database exists
-        self.db_path = "rankings.db"
+        self.db_path = "rankings3.db"
         self.load_rankings_from_db()
 
         # Load all US ZIP codes if user needs to find their ZIP
@@ -87,7 +90,7 @@ class App(tk.Tk):
 
         # If going to PageSeven, refresh so it properly shows saved zipcode & state
         if page_name == "PageSeven":
-            frame.refresh_zip_state()
+            frame.refresh_required_data() # refresh and check for needed data to render page properly.
 
         frame.tkraise()
 
@@ -385,35 +388,40 @@ class PageTwo(ttk.Frame):
         ).pack(pady=20)
 
     def save_and_continue(self, controller):
-    # Save selected game titles
+        # Save selected game titles
         controller.selected_games = [
             game for game, var in self.vars.items() if var.get()
         ]
 
-        # Reset rankings in controller
-        controller.rankings = {}
+        if len(controller.selected_games) < 5:
+            messagebox.showerror(message="Please select at least 5 Game Titles.")
+            return
 
-        # Reset Page 3 internal state so it rebuilds correctly
-        page3 = controller.frames["PageThree"]
+        else:
+            # Reset rankings in controller
+            controller.rankings = {}
 
-        page3.rank_vars = {}
-        page3.comboboxes = {}
-        page3.has_loaded_once = False
+            # Reset Page 3 internal state so it rebuilds correctly
+            page3 = controller.frames["PageThree"]
 
-        # Clear the dropdown frame widgets
-        for widget in page3.dropdown_frame.winfo_children():
-            widget.destroy()
+            page3.rank_vars = {}
+            page3.comboboxes = {}
+            page3.has_loaded_once = False
 
-        # Reset the button text
-        page3.load_button.config(text="Load Ranking Options")
+            # Clear the dropdown frame widgets
+            for widget in page3.dropdown_frame.winfo_children():
+                widget.destroy()
 
-        # Disable Continue button again
-        page3.continue_button.config(state="disabled")
+            # Reset the button text
+            page3.load_button.config(text="Load Ranking Options")
 
-        # Hide validation label
-        page3.validation_label.pack_forget()
+            # Disable Continue button again
+            page3.continue_button.config(state="disabled")
 
-        controller.show_frame("PageThree")
+            # Hide validation label
+            page3.validation_label.pack_forget()
+
+            controller.show_frame("PageThree")
 
 # ---------------- PAGE 3: Game Rankings ----------------
 
@@ -454,12 +462,20 @@ class PageThree(ttk.Frame):
         )
         self.continue_button.pack(pady=10)
 
+        # --------------------------------------------------------------------------------
+        # BACK TO START PAGE BUTTON (in case the user made a mistake/ has no list to rank)
+        # --------------------------------------------------------------------------------
+        ttk.Button(self,
+                   text="Back to Start Page",
+                   command=lambda: controller.show_frame("StartPage")
+                  ).pack(pady=5)
+
         # ---------------------------------------------------------
         # VALIDATION LABEL (hidden until needed)
         # ---------------------------------------------------------
         self.validation_label = ttk.Label(
             self,
-            text="Please complete all rankings",
+            text="Please complete rankings list and complete all rankings",
             foreground="red"
         )
         self.validation_label.pack()
@@ -609,7 +625,7 @@ class PageFour(ttk.Frame):
 
         ttk.Button(
             self,
-            text="Back to Ranking Page",
+            text="Go to Ranking Page",
             command=lambda: controller.show_frame("PageThree")
         ).pack(pady=5)
 
@@ -796,7 +812,7 @@ class PageSix(ttk.Frame):
         main = ttk.Frame(self)
         main.pack(fill="both", expand=True)
 
-        self.age = tk.StringVar(value="N")
+        self.age = tk.StringVar(value="N/A")
 
         ttk.Label(main, text="Please select your age range:").pack(anchor="w", pady=(5, 0))
 
@@ -832,10 +848,58 @@ class PageSeven(ttk.Frame):
         # PAGE TITLE
         ttk.Label(self, text="Page 7: Search for Gamers", font=("Arial", 16)).pack(pady=10)
 
-        # ---------------------------------------------------------
-        # LAYOUT: LEFT SETTINGS PANEL + RIGHT RESULTS PANEL
-        # ---------------------------------------------------------
-        main = ttk.Frame(self)
+        self.main_frame = ttk.Frame(self)
+        self.main_frame.pack(fill="both", expand=True)
+
+    # -------------------------------------------------------------------------------------------
+    # REFRESH REQUIRED DATA: Used by the main App() so it finds rankings, location, and age data.
+    #                        If rankings, location, or age is missing, DOES NOT LOAD FULL PAGE.
+    #                        Loads buttons to go fill in missing data instead.
+    # -------------------------------------------------------------------------------------------
+    def refresh_required_data(self):
+        # Clear old widgets
+        for widget in self.main_frame.winfo_children():
+            widget.destroy()
+
+        # Reload data fresh
+        self.controller.load_rankings_from_db()
+        self.controller.load_zipcode_from_db()
+        self.controller.load_age_from_db()
+
+        missing_data = False
+
+        if not self.controller.rankings:
+            ttk.Label(self.main_frame, text="You have no current rankings to compare:").pack(pady=5)
+            ttk.Button(self.main_frame, text="Go to Page 2 (Select Games)",
+                    command=lambda: self.controller.show_frame("PageTwo")).pack(pady=5)
+            missing_data = True
+
+        if not self.controller.user_zip:
+            ttk.Label(self.main_frame, text="You have not set your location yet:").pack(pady=5)
+            ttk.Button(self.main_frame, text="Go to Page 5 (Search for Your Location)",
+                    command=lambda: self.controller.show_frame("PageFive")).pack(pady=5)
+            missing_data = True
+
+        if not self.controller.age or self.controller.age == "N/A":
+            ttk.Label(self.main_frame, text="You have not saved your age yet:").pack(pady=5)
+            ttk.Button(self.main_frame, text="Go to Page 6 (Select Your Age)",
+                    command=lambda: self.controller.show_frame("PageSix")).pack(pady=5)
+            missing_data = True
+
+        if missing_data:
+            ttk.Label(self.main_frame, text="Alternatively, you can go:").pack(pady=5)
+            ttk.Button(self.main_frame, text="Back to Start Page",
+                    command=lambda: self.controller.show_frame("StartPage")).pack(pady=5)
+            return
+
+        # If no missing data, build full page here
+        self.build_full_page()
+
+    # -----------------------------------------------------------
+    # FULL PAGE LAYOUT: LEFT SETTINGS PANEL + RIGHT RESULTS PANEL
+    # -----------------------------------------------------------
+    def build_full_page(self):        
+        main = ttk.Frame(self.main_frame)
         main.pack(fill="both", expand=True)
 
         # LEFT SIDE SETTINGS
@@ -866,17 +930,24 @@ class PageSeven(ttk.Frame):
                            (self.age_26_30, "26-30"),
                            (self.age_31_up, "30+")]
 
-        # ⭐ Saved zip is initialized to "None" before "ZipLookup Page". But after that, this always refreshes
-        #     with the "refresh()" function to match the last saved controller/App() "self.user_zip/state" values.
-        self.using_zip_label = ttk.Label(self, text=f"Using ZIP Code: None")
+        # Saved zip is initialized to "None" before "ZipLookup Page". 
+        # But after that, this always refreshes with the "refresh()" function to match the last saved 
+        # controller/App() "self.user_zip/state" values.
+        # Check if an old ZIP code and State were saved
+        self.using_zip_label = ttk.Label(settings_frame, text=f"Using ZIP Code: None")
+
+        old_zip_code, old_state = self.controller.load_zipcode_from_db()
+        if old_zip_code and old_state:  
+            self.using_zip_label.config(text=f"Using ZIP Code: {old_zip_code} ({old_state})")
+
         self.using_zip_label.pack(pady=3)
 
         # Slider label
-        self.radius_label = ttk.Label(self, text="Radius Within: 5 miles")
+        self.radius_label = ttk.Label(settings_frame, text="Radius Within: 5 miles")
         self.radius_label.pack(anchor="w", padx=10)
 
         # Slider for radius (5–50 miles)
-        self.radius_slider = ttk.Scale(self, from_=5, to=50,
+        self.radius_slider = ttk.Scale(settings_frame, from_=5, to=50,
                                         orient="horizontal",
                                         command=self.update_radius_label)
         self.radius_slider.pack(anchor="w", padx=10)
@@ -887,13 +958,6 @@ class PageSeven(ttk.Frame):
             text="Run Search",
             command=self.run_search
         ).pack(pady=5)
-
-        # Try to display current user's ranking list with the settings
-        self.controller.load_rankings_from_db()
-        
-        if not self.controller.rankings:
-            ttk.Label(self.results_frame, text="You have no current rankings to compare").pack()
-            return
         
         ttk.Label(settings_frame, text="Your Ranking List:").pack(pady=5)
         for i, item in enumerate(sorted(self.controller.rankings.items(), key=lambda x: x[1]), start=1):
@@ -902,7 +966,7 @@ class PageSeven(ttk.Frame):
         ttk.Button(
             settings_frame,
             text="Back to Start Page",
-            command=lambda: controller.show_frame("StartPage")
+            command=lambda: self.controller.show_frame("StartPage")
         ).pack(pady=5)
 
         # RIGHT SIDE RESULTS (scrollable)
@@ -923,18 +987,6 @@ class PageSeven(ttk.Frame):
 
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
-
-    # ----------------------------------------------------------------
-    # REFRESH ZIP STATE: Used by the main App() so it loads ZIP code.
-    # ----------------------------------------------------------------
-    def refresh_zip_state(self):
-        """Called when the page is shown by App() controller to load the ZIP code and display it in label."""
-        # Check if an old ZIP code and State were saved
-        old_zip_state = self.controller.load_zipcode_from_db()
-        if old_zip_state:
-            old_zip_code = old_zip_state[0]
-            old_state = old_zip_state[1]
-            self.using_zip_label.config(text=f"Using ZIP Code: {old_zip_code} ({old_state})")
 
     # -----------------------------------------------------------------------------------------------------
     # UPDATE RADIUS LABEL: Used by ttk.Scale Object (slider bar) above to show current mile-radius setting.
@@ -1206,7 +1258,7 @@ class PageEight(ttk.Frame):
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
-        ttk.Button(self.display1_frame, text="Back to Page 7: Search Page",
+        ttk.Button(self.display1_frame, text="Go to Page 7: Search Page",
                    command=lambda: self.controller.show_frame("PageSeven")).pack(pady=10)
 
         ttk.Button(self.display1_frame, text="Back to Start Page",
