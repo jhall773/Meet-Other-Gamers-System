@@ -26,7 +26,7 @@ class App(tk.Tk):
         super().__init__()
 
         self.title("Multipage Selection + Ranking Demo")
-        self.geometry("600x450")
+        self.geometry("800x600")
 
         # Share Username on Start Page
         self.username = ""
@@ -397,7 +397,7 @@ class PageTwo(ttk.Frame):
             messagebox.showerror(message="Please select 5 Game Titles.")
             return
         elif len(controller.selected_games) > 5:
-            messagebox.showerror(message=f"You have selected more than 5 games. Please deselect {5 - len(controller.selected_games)} Game Title(s).")
+            messagebox.showerror(message=f"You have selected more than 5 games. Please deselect {len(controller.selected_games) - 5} Game Title(s).")
             return
         else:
             # Reset rankings in controller
