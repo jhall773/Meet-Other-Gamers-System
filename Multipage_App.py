@@ -45,7 +45,7 @@ class App(tk.Tk):
         self.rankings = {}
 
         # Load previous rankings if database exists
-        self.db_path = "rankings4.db"
+        self.db_path = "rankings.db"
         self.load_rankings_from_db()
 
         # Load all US ZIP codes if user needs to find their ZIP
@@ -537,11 +537,11 @@ class PageThree(ttk.Frame):
             row = ttk.Frame(self.dropdown_frame)
             row.pack(fill="x", pady=5)
 
-            ttk.Label(row, text=game, width=15).pack(side="left")
+            ttk.Label(row, text=game, width=50).pack(side="left")
 
             var = tk.StringVar()
             combo = ttk.Combobox(row, textvariable=var, width=5, state="readonly")
-            combo.pack(side="left")
+            combo.pack(side="right")
 
             self.rank_vars[game] = var
             self.comboboxes[game] = combo
@@ -1059,6 +1059,11 @@ class PageSeven(ttk.Frame):
         for age_range, age_str in self.age_ranges:
             if age_range.get() == True:
                 acceptable_ages.append(age_str)
+
+        # If user did not select an age range, warn them of this.
+        if len(acceptable_ages) == 0:
+            messagebox.showerror(message="Please enter at least 1 age range for the search.")
+            return
 
         # Find all acceptable ZIP codes
         acceptable_zips = self.search_radius()   # set of (zip, state)
