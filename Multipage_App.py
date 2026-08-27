@@ -45,7 +45,7 @@ class App(tk.Tk):
         self.rankings = {}
 
         # Load previous rankings if database exists
-        self.db_path = "rankings3.db"
+        self.db_path = "rankings4.db"
         self.load_rankings_from_db()
 
         # Load all US ZIP codes if user needs to find their ZIP
@@ -367,7 +367,7 @@ class PageTwo(ttk.Frame):
         super().__init__(parent)
 
         # PAGE TITLE
-        ttk.Label(self, text="Page 2: Choose Games", font=("Arial", 16)).pack(pady=10)
+        ttk.Label(self, text="Page 2: Choose 5 Games", font=("Arial", 16)).pack(pady=10)
 
         # Example list of Game Titles
         self.games = ["Splatoon 3", "Mario Kart 8 Deluxe", "Super Smash Bros. Ultimate", "Fortnite", "Overwatch 2", "Call of Duty: Modern Warefare 1-4", "Call of Duty: Black Ops 6-7", "Apex Legends", "Minecraft"]
@@ -394,8 +394,10 @@ class PageTwo(ttk.Frame):
         ]
 
         if len(controller.selected_games) < 5:
-            messagebox.showerror(message="Please select at least 5 Game Titles.")
+            messagebox.showerror(message="Please select 5 Game Titles.")
             return
+        elif len(controller.selected_games) > 5:
+            messagebox.showerror(message=f"You have selected more than 5 games. Please deselect {5 - len(controller.selected_games)} Game Title(s).")
 
         else:
             # Reset rankings in controller
