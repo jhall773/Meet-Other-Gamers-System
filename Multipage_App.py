@@ -13,10 +13,18 @@ from message_retrieval_logic import generate_conversations
 # Engine For online DB
 from supabase import create_client
 from dotenv import load_dotenv
-import os
+import sys, os
+
+# Helper function for Pyinstaller when calling any external non-Python file types.
+def resource_path(name):
+    if hasattr(sys, "_MEIPASS"):
+        return os.path.join(sys._MEIPASS, name)
+    return os.path.join(os.path.dirname(__file__), name)
+
 # Retrieve API key from environment variables
 # Load variables from .env into environment
-load_dotenv()
+env_path = resource_path(".env")
+load_dotenv(env_path)
 key = os.getenv("MEET_GAMERS_API_KEY")
 url = os.getenv("MEET_GAMERS_URL")
 supabase_engine = create_client(url, key)
@@ -49,7 +57,7 @@ class App(tk.Tk):
         self.load_rankings_from_db()
 
         # Load all US ZIP codes if user needs to find their ZIP
-        self.zip_db_path = "US_zip_codes.db"
+        self.zip_db_path = resource_path("US_zip_codes.db")
 
         # Container that holds all pages
         container = ttk.Frame(self)
