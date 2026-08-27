@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 import os
 
 # Retrieve API key from environment variables
-from Multipage_App import env_path # Helper filepath str for Pyinstaller when calling any external non-Python file types.
+from resource_path import env_path # Helper filepath str for Pyinstaller when calling any external non-Python file types.
 load_dotenv(env_path)
 key = os.getenv("MEET_GAMERS_API_KEY")
 url = os.getenv("MEET_GAMERS_URL")
