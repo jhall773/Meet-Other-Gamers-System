@@ -27,9 +27,11 @@ def retrieve_sent_msgs(username):
     )
 
     # Form the recipient list
-    recipient_list = set()
+    recipient_list = []
     for row in result.data:
-        recipient_list.add(row["recipient"])
+        recipient_list.append(row["recipient"])
+    recipient_list = list(dict.fromkeys(recipient_list)) # Creates a 'set-like' list that 'removes duplicates' and preserves the order.
+    
 
     # Retrieve Message Data from the SQL results
     row_num = 0
@@ -43,7 +45,6 @@ def retrieve_sent_msgs(username):
                 ['sent', result.data[row_num]["message"], time]
                 )
             row_num += 1
-        row_num += 1
 
     return sent_msgs, recipient_list 
 sent_messages, recipient_list = retrieve_sent_msgs(username)
@@ -63,9 +64,10 @@ def retrieve_recv_msgs(username):
     )
 
     # Form the sender list
-    sender_list = set()
+    sender_list = []
     for row in result.data:
-        sender_list.add(row["sender"])
+        sender_list.append(row["sender"])
+    sender_list = list(dict.fromkeys(sender_list)) # Creates a 'set-like' list that 'removes duplicates' and preserves the order.
 
     # Retrieve Message Data from the SQL results
     row_num = 0
@@ -79,7 +81,6 @@ def retrieve_recv_msgs(username):
                 ['recieved', result.data[row_num]["message"], time]
                 )
             row_num += 1
-        row_num += 1
 
     return recv_msgs, sender_list 
 recieved_messages, sender_list = retrieve_recv_msgs(username)
@@ -93,12 +94,15 @@ def generate_conversations(username):
     sent_messages, recipient_list = retrieve_sent_msgs(username)
     recieved_messages, sender_list = retrieve_recv_msgs(username)
     # Conversations = Combined sent_msgs (messages to) + recv_msgs (messages from) for the same username.
-    combined_user_list = recipient_list.union(sender_list)
+    combined_user_list = list(set(recipient_list).union(sender_list))
     Conversations = {user: [] for user in combined_user_list}
 
     for user in Conversations.keys():
-        combined_msgs = sent_messages[user].copy()
-        combined_msgs.extend(recieved_messages[user])
+        combined_msgs = []
+        if user in sent_messages.keys():
+            combined_msgs = sent_messages[user].copy()
+        if user in recieved_messages.keys():
+            combined_msgs.extend(recieved_messages[user])
         Conversations[user]  = combined_msgs
         # Sort by timestamp
         Conversations[user].sort(key=lambda x: datetime.strptime(str(x[2]), "%Y-%m-%d %H:%M:%S.%f%z"), reverse=True)

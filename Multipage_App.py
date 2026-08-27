@@ -1436,11 +1436,11 @@ class PageEight(ttk.Frame):
             # Append to Conversations
             database_time = datetime.now(timezone.utc)
 
-            if self.selected_user in self.Conversations.keys():
+            if self.selected_user in self.Conversations.keys(): # If sending to a Gamer you have talked to before.
                 self.Conversations[self.selected_user].append(
                     ["sent", msg_text, database_time]
                 )
-            else:
+            else: # If this is the first time you have ever recieved or sent a message to this Gamer.
                 self.Conversations[self.selected_user] = []
                 self.Conversations[self.selected_user].append(
                     ["sent", msg_text, database_time]
