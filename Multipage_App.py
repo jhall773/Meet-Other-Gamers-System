@@ -370,7 +370,7 @@ class PageTwo(ttk.Frame):
         ttk.Label(self, text="Page 2: Choose Games", font=("Arial", 16)).pack(pady=10)
 
         # Example list of Game Titles
-        self.games = ["Splatoon 3", "Mario Kart 8 Deluxe", "Super Smash Bros. Ultimate", "Fortnite", "Overwatch", "Apex Legends", "Minecraft"]
+        self.games = ["Splatoon 3", "Mario Kart 8 Deluxe", "Super Smash Bros. Ultimate", "Fortnite", "Overwatch 2", "Call of Duty: Modern Warefare 1-4", "Call of Duty: Black Ops 6-7", "Apex Legends", "Minecraft"]
 
         # Dictionary of checkbox variables
         self.vars = {}
