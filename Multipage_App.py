@@ -1436,9 +1436,15 @@ class PageEight(ttk.Frame):
             # Append to Conversations
             database_time = datetime.now(timezone.utc)
 
-            self.Conversations[self.selected_user].append(
-                ["sent", msg_text, database_time]
-            )
+            if self.selected_user in self.Conversations.keys():
+                self.Conversations[self.selected_user].append(
+                    ["sent", msg_text, database_time]
+                )
+            else:
+                self.Conversations[self.selected_user] = []
+                self.Conversations[self.selected_user].append(
+                    ["sent", msg_text, database_time]
+                )
 
             # Sort messages
             self.Conversations[self.selected_user].sort(key=lambda x: x[2], reverse=True)
