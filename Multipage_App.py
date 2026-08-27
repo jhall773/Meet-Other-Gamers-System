@@ -1285,7 +1285,7 @@ class PageEight(ttk.Frame):
             dt_local = dt_utc.astimezone(local_tz)
 
             ttk.Label(block, text=f"Username: {external_username}", font=("Arial", 12)).pack(anchor="w")
-            ttk.Label(block, text=f"Last Msg: {latest[1][:200]}").pack(anchor="w")
+            ttk.Label(block, text=f"Last Msg {latest[0]}: {latest[1][:200]}").pack(anchor="w")
             ttk.Label(block, text=f"Time: {dt_local}").pack(anchor="w")
 
             ttk.Button(block, text="View All Messages",
