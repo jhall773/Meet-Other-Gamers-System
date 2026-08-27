@@ -398,7 +398,7 @@ class PageTwo(ttk.Frame):
             return
         elif len(controller.selected_games) > 5:
             messagebox.showerror(message=f"You have selected more than 5 games. Please deselect {5 - len(controller.selected_games)} Game Title(s).")
-
+            return
         else:
             # Reset rankings in controller
             controller.rankings = {}
