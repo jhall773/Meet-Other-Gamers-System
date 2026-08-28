@@ -5,3 +5,4 @@ The main purpose of the Meet Other Gamers system is to help “gamers” (mainly
 - **AI Conversation Contemplating Different Tools for Location API:** https://copilot.microsoft.com/shares/WYxokRorgbsMXEC4bTeQ2
 - **AI Conversation About How to Work With Supabase (external database):** https://copilot.microsoft.com/shares/pvS78AFfGk5UWr6RxAV9N
 - **AI Conversation for Rapid Development of Location Matching/Distance Matching UI and Logic:** https://copilot.microsoft.com/shares/PbvRBZHXi1Sri7vLBQRir
+- **Word Document With AI Summarizing Our Conversation Used for Adding Location Functionality is in the files section (If Link does not load the full conversation)** 
