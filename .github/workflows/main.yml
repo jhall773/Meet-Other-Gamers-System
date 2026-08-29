@@ -1,0 +1,6 @@
+pyinstaller --onefile --windowed Multipage_App.py \
+  --add-data "US_zip_codes.db:." \
+  --icon "Meet Other Gamers.icns"
+
+pyinstaller --onefile Multipage_App.py \
+  --add-data "US_zip_codes.db:."
