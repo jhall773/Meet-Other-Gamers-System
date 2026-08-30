@@ -7,7 +7,9 @@ import os
 
 # Retrieve API key from environment variables
 def get_supabase():
-    load_dotenv()
+    # Only load .env if it exists (Windows dev environment)
+    if os.path.exists(".env"):
+        load_dotenv()
     key = os.getenv("MEET_GAMERS_API_KEY")
     url = os.getenv("MEET_GAMERS_URL")
     return create_client(url, key)
