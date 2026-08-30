@@ -4,13 +4,13 @@ from zoneinfo import ZoneInfo
 # Engine For online DB
 from supabase import create_client
 from dotenv import load_dotenv
+from resource_path import env_path
 import os
 
 # Retrieve API key from environment variables
 def get_supabase():
     # Only load .env if it exists (Windows dev environment)
-    if os.path.exists(".env"):
-        load_dotenv()
+    load_dotenv(env_path)
     key = os.getenv("MEET_GAMERS_API_KEY")
     url = os.getenv("MEET_GAMERS_URL")
     return create_client(url, key)
