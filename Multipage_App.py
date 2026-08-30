@@ -15,8 +15,7 @@ from supabase import create_client
 from dotenv import load_dotenv
 import sys, os
 from resource_path import resource_path
-from resource_path import env_path
-load_dotenv(env_path)
+load_dotenv()
 key = os.getenv("MEET_GAMERS_API_KEY")
 url = os.getenv("MEET_GAMERS_URL")
 supabase_engine = create_client(url, key)
