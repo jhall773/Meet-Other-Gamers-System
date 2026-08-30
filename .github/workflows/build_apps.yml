@@ -33,9 +33,12 @@ jobs:
   
       - name: Build macOS App
         run: |
+          export MEET_GAMERS_URL="${{ secrets.MEET_GAMERS_URL }}"
+          export MEET_GAMERS_API_KEY="${{ secrets.MEET_GAMERS_API_KEY }}"
           pyinstaller --onefile --windowed Multipage_App.py \
-          --add-data "US_zip_codes.db:." \
-          --icon "Meet Other Gamers.icns"
+            --add-data "US_zip_codes.db:." \
+            --icon "Meet Other Gamers.icns"
+
 
   
       - name: Create DMG Installer
@@ -79,8 +82,11 @@ jobs:
 
       - name: Build Linux Binary
         run: |
+          export MEET_GAMERS_URL="${{ secrets.MEET_GAMERS_URL }}"
+          export MEET_GAMERS_API_KEY="${{ secrets.MEET_GAMERS_API_KEY }}"
           pyinstaller --onefile Multipage_App.py \
-          --add-data "US_zip_codes.db:." \
+            --add-data "US_zip_codes.db:."
+
 
 
       - name: Upload Linux Artifact
