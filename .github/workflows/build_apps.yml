@@ -34,8 +34,10 @@ jobs:
       - name: Build macOS App
         run: |
           pyinstaller --onefile --windowed Multipage_App.py \
-            --add-data "US_zip_codes.db:." \
-            --icon "Meet Other Gamers.icns"
+          --add-data "US_zip_codes.db:." \
+          --add-data ".env:." \
+          --icon "Meet Other Gamers.icns"
+
   
       - name: Create DMG Installer
         run: |
@@ -79,7 +81,9 @@ jobs:
       - name: Build Linux Binary
         run: |
           pyinstaller --onefile Multipage_App.py \
-            --add-data "US_zip_codes.db:."
+          --add-data "US_zip_codes.db:." \
+          --add-data ".env:."
+
 
       - name: Upload Linux Artifact
         uses: actions/upload-artifact@v4
