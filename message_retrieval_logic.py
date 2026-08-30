@@ -48,8 +48,7 @@ def retrieve_sent_msgs(username):
                 )
             row_num += 1
 
-    return sent_msgs, recipient_list 
-sent_messages, recipient_list = retrieve_sent_msgs(username)
+    return sent_msgs, recipient_list
 
 # ------------------------- Retrieve Sent Msgs --------------------------------
 
@@ -85,7 +84,6 @@ def retrieve_recv_msgs(username):
             row_num += 1
 
     return recv_msgs, sender_list 
-recieved_messages, sender_list = retrieve_recv_msgs(username)
 
 # ------------------------- Retrieve Recieved Msgs ----------------------------
 
