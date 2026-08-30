@@ -6,10 +6,13 @@ from dotenv import load_dotenv
 import os
 
 # Retrieve API key from environment variables
-load_dotenv()
-key = os.getenv("MEET_GAMERS_API_KEY")
-url = os.getenv("MEET_GAMERS_URL")
-supabase_engine = create_client(url, key)
+def get_supabase():
+    load_dotenv()
+    key = os.getenv("MEET_GAMERS_API_KEY")
+    url = os.getenv("MEET_GAMERS_URL")
+    return create_client(url, key)
+
+supabase_engine = get_supabase()
 
 # Copied Usernames in Online DB for Testing
 username = "S4TVfwp6NCn7jh8"
