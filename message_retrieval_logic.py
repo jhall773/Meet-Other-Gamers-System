@@ -50,8 +50,7 @@ def retrieve_sent_msgs(username):
 
     return sent_msgs, recipient_list 
 sent_messages, recipient_list = retrieve_sent_msgs(username)
-print(sent_messages)
-print()
+
 # ------------------------- Retrieve Sent Msgs --------------------------------
 
 
@@ -87,8 +86,7 @@ def retrieve_recv_msgs(username):
 
     return recv_msgs, sender_list 
 recieved_messages, sender_list = retrieve_recv_msgs(username)
-print(recieved_messages)
-print()
+
 # ------------------------- Retrieve Recieved Msgs ----------------------------
 
 
@@ -112,4 +110,13 @@ def generate_conversations(username):
 
     return Conversations
 # ------------------------- Return Conversations ------------------------------
-print(generate_conversations(username))
+if __name__ == "__main__":
+    sent_messages, recipient_list = retrieve_sent_msgs(username)
+    print(sent_messages)
+    print()
+
+    recieved_messages, sender_list = retrieve_recv_msgs(username)
+    print(recieved_messages)
+    print()
+
+    print(generate_conversations(username))
