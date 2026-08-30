@@ -1,0 +1,79 @@
+name: Publish Release
+
+on:
+  push:
+    tags:
+      - "*"
+
+jobs:
+  build-macos:
+    if: contains(github.ref, '-macOS')
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller create-dmg
+
+      - name: Build macOS App
+        run: |
+          pyinstaller --onefile --windowed Multipage_App.py \
+            --add-data "US_zip_codes.db:." \
+            --icon "Meet Other Gamers.icns"
+
+      - name: Create DMG Installer
+        run: |
+          create-dmg \
+            --volname "Meet Other Gamers" \
+            --window-pos 200 120 \
+            --window-size 800 600 \
+            --icon-size 100 \
+            --app-drop-link 400 200 \
+            "MeetOtherGamers-macOS.dmg" \
+            "dist/Multipage_App.app"
+
+      - name: Publish macOS Pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          prerelease: true
+          files: MeetOtherGamers-macOS.dmg
+
+  build-linux:
+    if: contains(github.ref, '-linux')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build Linux Binary
+        run: |
+          pyinstaller --onefile Multipage_App.py \
+            --add-data "US_zip_codes.db:."
+          mv dist/Multipage_App dist/Multipage_App-linux
+
+      - name: Publish Linux Pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          prerelease: true
+          files: dist/Multipage_App-linux
+
