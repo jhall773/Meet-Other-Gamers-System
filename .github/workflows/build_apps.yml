@@ -90,6 +90,7 @@ jobs:
         with:
           name: Linux-App
           path: dist/Multipage_App
+          
   build-windows:
     runs-on: windows-latest
   
@@ -109,9 +110,10 @@ jobs:
           pip install pyinstaller
   
       - name: Build Windows EXE
+        shell: pwsh
         run: |
-          set MEET_GAMERS_URL=${{ secrets.MEET_GAMERS_URL }}
-          set MEET_GAMERS_API_KEY=${{ secrets.MEET_GAMERS_API_KEY }}
+          $env:MEET_GAMERS_URL = "${{ secrets.MEET_GAMERS_URL }}"
+          $env:MEET_GAMERS_API_KEY = "${{ secrets.MEET_GAMERS_API_KEY }}"
           pyinstaller --onefile Multipage_App.py --add-data "US_zip_codes.db;."
   
       - name: Upload Windows Artifact
@@ -119,4 +121,5 @@ jobs:
         with:
           name: Windows-App
           path: dist/Multipage_App.exe
+
 
