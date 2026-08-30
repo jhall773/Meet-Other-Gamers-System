@@ -6,6 +6,11 @@ on:
 jobs:
   build-macos:
     runs-on: macos-latest
+    
+    env:
+      MEET_GAMERS_URL: ${{ secrets.MEET_GAMERS_URL }}
+      MEET_GAMERS_API_KEY: ${{ secrets.MEET_GAMERS_API_KEY }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -41,6 +46,11 @@ jobs:
 
   build-linux:
     runs-on: ubuntu-latest
+    
+    env:
+      MEET_GAMERS_URL: ${{ secrets.MEET_GAMERS_URL }}
+      MEET_GAMERS_API_KEY: ${{ secrets.MEET_GAMERS_API_KEY }}
+      
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
