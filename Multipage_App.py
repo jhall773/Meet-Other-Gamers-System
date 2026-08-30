@@ -22,14 +22,15 @@ def get_supabase():
     url = os.getenv("MEET_GAMERS_URL")
     return create_client(url, key)
 
-supabase_engine = get_supabase()
-
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
 
         self.title("Multipage Selection + Ranking Demo")
         self.geometry("800x600")
+
+        # Share Supabase Engine from global function call above
+        self.supabase_engine = get_supabase()
 
         # Share Username on Start Page
         self.username = ""
@@ -130,7 +131,7 @@ class App(tk.Tk):
         for row in rows:
             row["username"] = self.load_username_from_db()
 
-        supabase_engine.table("rankings").upsert(rows).execute()
+        self.supabase_engine.table("rankings").upsert(rows).execute()
 
     # -----------------------------------------------------------------------------------------------
     # 🔥 Save username to SQLite using pandas and to online DB with supabase engine
@@ -143,7 +144,7 @@ class App(tk.Tk):
 
         # online_username_sql = f"select username from users where username = '{username}';"
         # supabase sql results are APIResponse objects with attributes data = [] and count = 0 or more
-        online_username_data = (supabase_engine
+        online_username_data = (self.supabase_engine
                                 .table("users").select("username")
                                 .eq(column="username", value=self.username)
                                 .execute()
@@ -154,7 +155,7 @@ class App(tk.Tk):
 
         while online_username_data.data:
             self.username = generate_username()
-            online_username_data = (supabase_engine
+            online_username_data = (self.supabase_engine
                                 .table("users").select("username")
                                 .eq(column="username", value=self.username)
                                 .execute()
@@ -175,7 +176,7 @@ class App(tk.Tk):
         conn.close()
 
         # Save to online DB (CAN ONLY DO THIS ONCE):
-        supabase_engine.table("users").insert({"username":self.username, "created_at":database_time.isoformat()}).execute()
+        self.supabase_engine.table("users").insert({"username":self.username, "created_at":database_time.isoformat()}).execute()
 
     # -----------------------------------------------------------------------------------------------
     # 🔥 Save age range to SQLite using pandas and to online DB with supabase engine
@@ -194,7 +195,7 @@ class App(tk.Tk):
         conn.close()
 
         # Save to online DB:
-        supabase_engine.table("age").upsert({"user": self.username, "age": self.age}).execute()
+        self.supabase_engine.table("age").upsert({"user": self.username, "age": self.age}).execute()
 
     # -----------------------------------------------------------------------------------------------
     # 🔥 Save zipcode range to SQLite using pandas and to online DB with supabase engine
@@ -214,7 +215,7 @@ class App(tk.Tk):
         conn.close()
 
         # Save to online DB:
-        supabase_engine.table("user_zipcodes").upsert({"username": self.username, "state": self.user_state, "zipcode": self.user_zip}).execute()
+        self.supabase_engine.table("user_zipcodes").upsert({"username": self.username, "state": self.user_state, "zipcode": self.user_zip}).execute()
 
     # ----------------------------------------------------------
     # 🔥 Load rankings from SQLite if available
@@ -1075,7 +1076,7 @@ class PageSeven(ttk.Frame):
         try:
             # 1. Get usernames with acceptable ages
             user_age_results = (
-                supabase_engine
+                self.supabase_engine
                 .table("age")
                 .select("age, users(username)")
                 .in_("age", acceptable_ages)
@@ -1086,7 +1087,7 @@ class PageSeven(ttk.Frame):
 
             # 2. Get ZIP codes for all users
             zip_results = (
-                supabase_engine
+                self.supabase_engine
                 .table("user_zipcodes")
                 .select("username, zipcode, state")
                 .execute()
@@ -1101,7 +1102,7 @@ class PageSeven(ttk.Frame):
             zip_usernames = set(zip_filtered_df["username"])
 
             # 4. Load user rankings
-            response = supabase_engine.table("rankings").select("*").execute()
+            response = self.supabase_engine.table("rankings").select("*").execute()
             user_rankings_df = pd.DataFrame(response.data)
 
             # 5. Filter user rankings to only get rankings from users with acceptable ages

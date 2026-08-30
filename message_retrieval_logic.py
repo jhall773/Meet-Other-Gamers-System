@@ -12,8 +12,6 @@ def get_supabase():
     url = os.getenv("MEET_GAMERS_URL")
     return create_client(url, key)
 
-supabase_engine = get_supabase()
-
 # Copied Usernames in Online DB for Testing
 username = "S4TVfwp6NCn7jh8"
 username2 = "7GxT6a0Fe5WMUU1"
@@ -21,6 +19,7 @@ username2 = "7GxT6a0Fe5WMUU1"
 # ------------------------- Retrieve Sent Msgs --------------------------------
 # Note: message_view is a VIEW created by the SQL statement "Creating 'Message' View" in the supabase SQL Editor.
 def retrieve_sent_msgs(username):
+    supabase_engine = get_supabase()
     result = (
         supabase_engine
         .table("message_view")
@@ -58,6 +57,7 @@ print()
 
 # ------------------------- Retrieve Recieved Msgs ----------------------------
 def retrieve_recv_msgs(username):
+    supabase_engine = get_supabase()
     result = (
         supabase_engine
         .table("message_view")

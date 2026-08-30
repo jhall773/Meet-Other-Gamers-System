@@ -13,8 +13,6 @@ def get_supabase():
     url = os.getenv("MEET_GAMERS_URL")
     return create_client(url, key)
 
-supabase_engine = get_supabase()
-
 # Copied Usernames in Online DB for Testing
 username = "S4TVfwp6NCn7jh8"
 username2 = "7GxT6a0Fe5WMUU1"
@@ -27,6 +25,7 @@ def send_message(username, recipient, msg):
     database_time = datetime.now(central_tz)
 
     # Send message to online DB for other recipient user to view:
+    supabase_engine = get_supabase()
     supabase_engine.table("messages").insert(
                                              {"sender": username, 
                                               "recipient": recipient,
