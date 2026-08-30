@@ -24,6 +24,9 @@ def get_supabase():
     url = os.getenv("MEET_GAMERS_URL")
     return create_client(url, key)
 
+print("DEBUG RUNTIME URL:", os.getenv("MEET_GAMERS_URL"))
+print("DEBUG RUNTIME KEY:", os.getenv("MEET_GAMERS_API_KEY"))
+
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
