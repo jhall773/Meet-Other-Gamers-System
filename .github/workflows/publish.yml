@@ -3,11 +3,11 @@ name: Publish Release
 on:
   push:
     tags:
-      - "v*"
+      - "*"
 
 jobs:
   build-macos:
-    #if: contains(github.ref, '-macOS')
+    if: contains(github.ref, '-macOS')
     runs-on: macos-latest
     steps:
       - name: Checkout repository
@@ -48,7 +48,7 @@ jobs:
           files: MeetOtherGamers-macOS.dmg
 
   build-linux:
-    #if: contains(github.ref, '-linux')
+    if: contains(github.ref, '-linux')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
