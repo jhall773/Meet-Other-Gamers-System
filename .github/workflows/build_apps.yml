@@ -14,7 +14,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-  
+
+      - name: Debug env
+        run: |
+          echo "URL is: $MEET_GAMERS_URL"
+          echo "KEY is: $MEET_GAMERS_API_KEY"
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -54,6 +59,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Debug env
+        run: |
+          echo "URL is: $MEET_GAMERS_URL"
+          echo "KEY is: $MEET_GAMERS_API_KEY"
 
       - name: Set up Python
         uses: actions/setup-python@v5
