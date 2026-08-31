@@ -15,16 +15,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Debug env
-        run: |
-          echo "URL is: $MEET_GAMERS_URL"
-          echo "KEY is: $MEET_GAMERS_API_KEY"
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
       - name: Debug Python env (macOS)
         run: |
           python - << 'EOF'
@@ -33,33 +23,41 @@ jobs:
           print("Python sees KEY:", os.getenv("MEET_GAMERS_API_KEY"))
           EOF
 
-  
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
-  
+
+      - name: Create .env file (macOS)
+        run: |
+          echo "MEET_GAMERS_URL=${{ secrets.MEET_GAMERS_URL }}" >> .env
+          echo "MEET_GAMERS_API_KEY=${{ secrets.MEET_GAMERS_API_KEY }}" >> .env
+
       - name: Build macOS App
         run: |
-          export MEET_GAMERS_URL="${{ secrets.MEET_GAMERS_URL }}"
-          export MEET_GAMERS_API_KEY="${{ secrets.MEET_GAMERS_API_KEY }}"
           pyinstaller --onefile --windowed Multipage_App.py \
             --add-data "US_zip_codes.db:." \
+            --add-data ".env:." \
             --icon "Meet Other Gamers.icns"
-  
+
       - name: Create DMG Installer
         run: |
           hdiutil create -volname "Meet Other Gamers" \
             -srcfolder dist/Multipage_App.app \
             -ov -format UDZO MeetOtherGamers.dmg
-  
+
       - name: Upload macOS DMG
         uses: actions/upload-artifact@v4
         with:
           name: macOS-DMG
           path: MeetOtherGamers.dmg
-  
+
 
   build-linux:
     runs-on: ubuntu-latest
@@ -67,20 +65,10 @@ jobs:
     env:
       MEET_GAMERS_URL: ${{ secrets.MEET_GAMERS_URL }}
       MEET_GAMERS_API_KEY: ${{ secrets.MEET_GAMERS_API_KEY }}
-      
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Debug env
-        run: |
-          echo "URL is: $MEET_GAMERS_URL"
-          echo "KEY is: $MEET_GAMERS_API_KEY"
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
 
       - name: Debug Python env (Linux)
         run: |
@@ -90,18 +78,27 @@ jobs:
           print("Python sees KEY:", os.getenv("MEET_GAMERS_API_KEY"))
           EOF
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
 
+      - name: Create .env file (Linux)
+        run: |
+          echo "MEET_GAMERS_URL=${{ secrets.MEET_GAMERS_URL }}" >> .env
+          echo "MEET_GAMERS_API_KEY=${{ secrets.MEET_GAMERS_API_KEY }}" >> .env
+
       - name: Build Linux Binary
         run: |
-          export MEET_GAMERS_URL="${{ secrets.MEET_GAMERS_URL }}"
-          export MEET_GAMERS_API_KEY="${{ secrets.MEET_GAMERS_API_KEY }}"
           pyinstaller --onefile Multipage_App.py \
-            --add-data "US_zip_codes.db:."
+            --add-data "US_zip_codes.db:." \
+            --add-data ".env:."
 
       - name: Upload Linux Artifact
         uses: actions/upload-artifact@v4
@@ -109,39 +106,48 @@ jobs:
           name: Linux-App
           path: dist/Multipage_App
 
-          
+
   build-windows:
     runs-on: windows-latest
 
     env:
       MEET_GAMERS_URL: ${{ secrets.MEET_GAMERS_URL }}
       MEET_GAMERS_API_KEY: ${{ secrets.MEET_GAMERS_API_KEY }}
-  
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-  
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
 
       - name: Debug Python env (Windows)
         shell: pwsh
         run: |
           python -c "import os; print('Python sees URL:', os.getenv('MEET_GAMERS_URL')); print('Python sees KEY:', os.getenv('MEET_GAMERS_API_KEY'))"
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
-  
+
+      - name: Create .env file (Windows)
+        shell: pwsh
+        run: |
+          Set-Content -Path ".env" -Value "MEET_GAMERS_URL=${{ secrets.MEET_GAMERS_URL }}"
+          Add-Content -Path ".env" -Value "MEET_GAMERS_API_KEY=${{ secrets.MEET_GAMERS_API_KEY }}"
+
       - name: Build Windows EXE
         shell: pwsh
         run: |
-          pyinstaller --onefile Multipage_App.py --add-data "US_zip_codes.db;." --icon "Meet Other Gamers.ico"
-  
+          pyinstaller --onefile Multipage_App.py `
+            --add-data "US_zip_codes.db;." `
+            --add-data ".env;." `
+            --icon "Meet Other Gamers.ico"
+
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
         with:
