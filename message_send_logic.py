@@ -4,13 +4,12 @@ from zoneinfo import ZoneInfo
 # Engine For online DB
 from supabase import create_client
 from dotenv import load_dotenv
-from resource_path import env_path
+from resource_path import resource_path
 import os
 
 # Retrieve API key from environment variables
 def get_supabase():
-    # Load .env if it exists (dev environments- native PC)
-    load_dotenv()  # fallback search handles everything (e.g. GitHub Actions environments)
+    load_dotenv(resource_path(".env"))  # Load .env from wherever it is (on disk [dev environment] or in vritual environment directory [GitHub Actions environment])
     key = os.getenv("MEET_GAMERS_API_KEY")
     url = os.getenv("MEET_GAMERS_URL")
 
