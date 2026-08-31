@@ -24,6 +24,14 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      - name: Debug Python env
+        run: |
+          python - << 'EOF'
+          import os
+          print("Python sees URL:", os.getenv("MEET_GAMERS_URL"))
+          print("Python sees KEY:", os.getenv("MEET_GAMERS_API_KEY"))
+          EOF
   
       - name: Install dependencies
         run: |
@@ -72,6 +80,14 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Debug Python env
+        run: |
+          python - << 'EOF'
+          import os
+          print("Python sees URL:", os.getenv("MEET_GAMERS_URL"))
+          print("Python sees KEY:", os.getenv("MEET_GAMERS_API_KEY"))
+          EOF
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -93,6 +109,10 @@ jobs:
           
   build-windows:
     runs-on: windows-latest
+
+    env:
+      MEET_GAMERS_URL: ${{ secrets.MEET_GAMERS_URL }}
+      MEET_GAMERS_API_KEY: ${{ secrets.MEET_GAMERS_API_KEY }}
   
     steps:
       - name: Checkout repository
@@ -102,7 +122,16 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-  
+
+      - name: Debug Python env
+        shell: pwsh
+        run: |
+          python - << 'EOF'
+          import os
+          print("Python sees URL:", os.getenv("MEET_GAMERS_URL"))
+          print("Python sees KEY:", os.getenv("MEET_GAMERS_API_KEY"))
+          EOF
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -112,8 +141,6 @@ jobs:
       - name: Build Windows EXE
         shell: pwsh
         run: |
-          $env:MEET_GAMERS_URL = "${{ secrets.MEET_GAMERS_URL }}"
-          $env:MEET_GAMERS_API_KEY = "${{ secrets.MEET_GAMERS_API_KEY }}"
           pyinstaller --onefile Multipage_App.py --add-data "US_zip_codes.db;." --icon "Meet Other Gamers.ico"
   
       - name: Upload Windows Artifact
@@ -121,5 +148,3 @@ jobs:
         with:
           name: Windows-App
           path: dist/Multipage_App.exe
-
-
