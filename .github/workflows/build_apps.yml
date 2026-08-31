@@ -39,6 +39,15 @@ jobs:
           echo "MEET_GAMERS_URL=${{ secrets.MEET_GAMERS_URL }}" >> .env
           echo "MEET_GAMERS_API_KEY=${{ secrets.MEET_GAMERS_API_KEY }}" >> .env
 
+      - name: Debug .env location
+        run: |
+          echo "Current directory:"
+          pwd
+          echo "Files here:"
+          ls -la
+          echo "Searching for .env:"
+          find . -name ".env"
+
       - name: Build macOS App
         run: |
           pyinstaller --onefile --windowed Multipage_App.py \
@@ -94,6 +103,15 @@ jobs:
           echo "MEET_GAMERS_URL=${{ secrets.MEET_GAMERS_URL }}" >> .env
           echo "MEET_GAMERS_API_KEY=${{ secrets.MEET_GAMERS_API_KEY }}" >> .env
 
+      - name: Debug .env location
+        run: |
+          echo "Current directory:"
+          pwd
+          echo "Files here:"
+          ls -la
+          echo "Searching for .env:"
+          find . -name ".env"
+
       - name: Build Linux Binary
         run: |
           pyinstaller --onefile Multipage_App.py \
@@ -139,6 +157,14 @@ jobs:
         run: |
           Set-Content -Path ".env" -Value "MEET_GAMERS_URL=${{ secrets.MEET_GAMERS_URL }}"
           Add-Content -Path ".env" -Value "MEET_GAMERS_API_KEY=${{ secrets.MEET_GAMERS_API_KEY }}"
+
+      - name: Debug .env location
+        shell: pwsh
+        run: |
+          Write-Host "Current directory:"
+          Get-Location
+          Write-Host "Files here:"
+          Get-ChildItem -Recurse -Filter ".env"
 
       - name: Build Windows EXE
         shell: pwsh
