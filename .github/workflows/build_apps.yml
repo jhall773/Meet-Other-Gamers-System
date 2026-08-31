@@ -81,12 +81,10 @@ jobs:
           python-version: "3.11"
 
       - name: Debug Python env
+        shell: pwsh
         run: |
-          python - << 'EOF'
-          import os
-          print("Python sees URL:", os.getenv("MEET_GAMERS_URL"))
-          print("Python sees KEY:", os.getenv("MEET_GAMERS_API_KEY"))
-          EOF
+          python -c "import os; print('Python sees URL:', os.getenv('MEET_GAMERS_URL')); print('Python sees KEY:', os.getenv('MEET_GAMERS_API_KEY'))"
+
 
       - name: Install dependencies
         run: |
