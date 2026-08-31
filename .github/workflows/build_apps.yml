@@ -114,7 +114,7 @@ jobs:
         run: |
           $env:MEET_GAMERS_URL = "${{ secrets.MEET_GAMERS_URL }}"
           $env:MEET_GAMERS_API_KEY = "${{ secrets.MEET_GAMERS_API_KEY }}"
-          pyinstaller --onefile Multipage_App.py --add-data "US_zip_codes.db;."
+          pyinstaller --onefile Multipage_App.py --add-data "US_zip_codes.db;." --icon "Meet Other Gamers.ico"
   
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
