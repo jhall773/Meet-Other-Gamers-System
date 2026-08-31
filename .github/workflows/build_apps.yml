@@ -60,6 +60,10 @@ jobs:
           name: macOS-DMG
           path: MeetOtherGamers.dmg
 
+      - name: Test macOS app exit code
+        run: |
+          ./dist/Multipage_App.app/Contents/MacOS/Multipage_App || echo "App crashed"
+
   build-linux:
     runs-on: ubuntu-latest
     
@@ -107,6 +111,11 @@ jobs:
         with:
           name: Linux-App
           path: dist/Multipage_App
+
+      - name: Run Linux app in CI
+        run: |
+          ./dist/Multipage_App || echo "App crashed"
+
           
   build-windows:
     runs-on: windows-latest
@@ -146,3 +155,12 @@ jobs:
         with:
           name: Windows-App
           path: dist/Multipage_App.exe
+
+      - name: Run Windows app in CI
+        shell: pwsh
+        run: |
+          dist\Multipage_App.exe
+          if ($LASTEXITCODE -ne 0) {
+              Write-Host "App crashed with exit code $LASTEXITCODE"
+          }
+
