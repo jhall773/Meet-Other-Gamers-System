@@ -114,7 +114,7 @@ jobs:
 
       - name: Build Linux Binary
         run: |
-          pyinstaller --onefile Multipage_App.py \
+          pyinstaller --onefile --windowed Multipage_App.py \
             --add-data "US_zip_codes.db:." \
             --add-data ".env:."
 
@@ -169,7 +169,7 @@ jobs:
       - name: Build Windows EXE
         shell: pwsh
         run: |
-          pyinstaller --onefile Multipage_App.py `
+          pyinstaller --onefile --windowed Multipage_App.py `
             --add-data "US_zip_codes.db;." `
             --add-data ".env;." `
             --icon "Meet Other Gamers.ico"
