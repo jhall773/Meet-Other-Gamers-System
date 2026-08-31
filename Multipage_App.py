@@ -18,10 +18,14 @@ from resource_path import resource_path
 from resource_path import env_path
 
 def get_supabase():
-    # Only load .env if it exists (Windows dev environment)
-    load_dotenv(env_path)
+    # Load .env if it exists (dev environments- native PC)
+    load_dotenv()  # fallback search handles everything (e.g. GitHub Actions environments)
     key = os.getenv("MEET_GAMERS_API_KEY")
     url = os.getenv("MEET_GAMERS_URL")
+    
+    if not key or not url:
+        raise RuntimeError("Missing Supabase configuration")
+    
     return create_client(url, key)
 
 class App(tk.Tk):
