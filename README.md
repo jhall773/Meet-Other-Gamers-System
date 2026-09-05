@@ -1,3 +1,4 @@
+**To download this project's desktop application, please see the "Releases" tags.**
 The main purpose of the Meet Other Gamers system is to help “gamers” (mainly teens/young adults) find other gamers in their general area who play the same (or similar) games as them. This is done through a search algorithm that matches gamers based on their location and a self-ranked list of the games they play. Besides the system objectives of searching for other gamers, adding their location, and ranking/adding games to a game “rankings list”, users can send direct messages to gamers that they find to be good matches for them and request to meet them in person (and vice versa).
 
 **Note: I used Microsoft Copilot AI to assist me in various stages of this development.**
