@@ -11,9 +11,9 @@ def generate_username():
         import random
 
         ascii_ranges = [
-            range(48, 57),    # 48-57 are digits 0-9 in Ascii
-            range(65, 90),    # 65–90 are capital letters in Ascii
-            range(97, 123)    # 97-123 are lowercase letters in Ascii
+            range(48, 58),    # 48-57 are digits 0-9 in Ascii
+            range(65, 91),    # 65–90 are capital letters in Ascii
+            range(97, 123)    # 97-122 are lowercase letters in Ascii
         ]
 
         # Pick a random range, then a random number from it
