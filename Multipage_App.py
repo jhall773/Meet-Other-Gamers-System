@@ -166,12 +166,18 @@ class App(tk.Tk):
                                )
 
         # If username does NOT exist in online DB:
-
         database_time = datetime.now(timezone.utc)
+        
+        import uuid
+        token = str(uuid.uuid4())
+
+        import hashlib
+        import base64
+        hashed = base64.b64encode(hashlib.sha256(token.encode()).digest()).decode()
 
         df = pd.DataFrame(
-            [(self.username, database_time)],
-            columns = ["username", "created_at"]
+            [(self.username, database_time, token)],
+            columns = ["username", "created_at", "device_token"]
         )
 
         # Save to local DB (CAN ONLY DO THIS ONCE):
@@ -180,7 +186,7 @@ class App(tk.Tk):
         conn.close()
 
         # Save to online DB (CAN ONLY DO THIS ONCE):
-        self.supabase_engine.table("users").insert({"username":self.username, "created_at":database_time.isoformat()}).execute()
+        self.supabase_engine.table("users").insert({"username":self.username, "created_at":database_time.isoformat(), "device_token_hash": hashed}).execute()
 
     # -----------------------------------------------------------------------------------------------
     # 🔥 Save age range to SQLite using pandas and to online DB with supabase engine
@@ -248,12 +254,23 @@ class App(tk.Tk):
     # 🔥 Load username from SQLite if available
     # ----------------------------------------------------------
     def load_username_from_db(self):
+        import hashlib
+        import base64
+
+        hash_response = (self.supabase_engine
+                                .table("users").select("device_token_hash")
+                                .eq(column="username", value=self.username)
+                                .execute()
+                               )
+
+        hashed = hash_response.data[0]['device_token_hash']
+        
         if not os.path.exists(self.db_path):
             return
 
         conn = sqlite3.connect(self.db_path)
         try:
-            df = pd.read_sql("SELECT username FROM users", conn)
+            df = pd.read_sql("SELECT username, device_token FROM users", conn)
         except Exception:
             conn.close()
             return
@@ -263,8 +280,15 @@ class App(tk.Tk):
         if df.empty:
             return
 
+        info = df.squeeze()
+        username_info = info['username']
+        token_info = info['device_token']
+
+        if base64.b64encode(hashlib.sha256(token_info.encode()).digest()).decode() != hashed:
+            return
+
         # Restore state
-        self.username = df.squeeze()
+        self.username = username_info
         return self.username
 
     # ----------------------------------------------------------
