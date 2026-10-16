@@ -254,17 +254,6 @@ class App(tk.Tk):
     # 🔥 Load username from SQLite if available
     # ----------------------------------------------------------
     def load_username_from_db(self):
-        import hashlib
-        import base64
-
-        hash_response = (self.supabase_engine
-                                .table("users").select("device_token_hash")
-                                .eq(column="username", value=self.username)
-                                .execute()
-                               )
-
-        hashed = hash_response.data[0]['device_token_hash']
-        
         if not os.path.exists(self.db_path):
             return
 
@@ -284,11 +273,22 @@ class App(tk.Tk):
         username_info = info['username']
         token_info = info['device_token']
 
+        self.username = username_info
+
+        import hashlib
+        import base64
+        hash_response = (self.supabase_engine
+                                .table("users").select("device_token_hash")
+                                .eq(column="username", value=self.username)
+                                .execute()
+                                )
+
+        hashed = hash_response.data[0]['device_token_hash']
+
         if base64.b64encode(hashlib.sha256(token_info.encode()).digest()).decode() != hashed:
             return
 
         # Restore state
-        self.username = username_info
         return self.username
 
     # ----------------------------------------------------------
